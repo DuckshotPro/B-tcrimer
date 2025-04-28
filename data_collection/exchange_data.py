@@ -60,8 +60,49 @@ def store_ohlcv_data(df):
         return
     
     try:
+        # Since pandas has issues with different parameter styles between SQLite and PostgreSQL,
+        # we'll insert the data manually with the correct parameter style
+        import os
         conn = get_db_connection()
-        df.to_sql('ohlcv_data', conn, if_exists='append', index=False)
+        cursor = conn.cursor()
+        
+        for _, row in df.iterrows():
+            # Format timestamp correctly if it's not already a string
+            timestamp = row['timestamp']
+            if not isinstance(timestamp, str):
+                timestamp = timestamp.strftime('%Y-%m-%d %H:%M:%S')
+                
+            # Use the right parameter style based on the database
+            if 'DATABASE_URL' in os.environ:
+                # PostgreSQL uses %s for parameters
+                cursor.execute(
+                    """
+                    INSERT INTO ohlcv_data 
+                    (symbol, exchange, timestamp, open, high, low, close, volume) 
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        row['symbol'], row['exchange'], timestamp,
+                        float(row['open']), float(row['high']), float(row['low']),
+                        float(row['close']), float(row['volume'])
+                    )
+                )
+            else:
+                # SQLite uses ? for parameters
+                cursor.execute(
+                    """
+                    INSERT INTO ohlcv_data 
+                    (symbol, exchange, timestamp, open, high, low, close, volume) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        row['symbol'], row['exchange'], timestamp,
+                        float(row['open']), float(row['high']), float(row['low']),
+                        float(row['close']), float(row['volume'])
+                    )
+                )
+        
+        conn.commit()
         conn.close()
         logger.info(f"Stored {len(df)} OHLCV records for {df['symbol'].iloc[0]}")
     except Exception as e:
@@ -99,10 +140,21 @@ def update_exchange_data(config):
                         max_date = df['timestamp'].max().strftime('%Y-%m-%d')
                         
                         cursor = conn.cursor()
-                        cursor.execute(
-                            "DELETE FROM ohlcv_data WHERE symbol = ? AND exchange = ? AND date(timestamp) BETWEEN ? AND ?",
-                            (symbol, exchange_id, min_date, max_date)
-                        )
+                        
+                        # Use different parameter styles for PostgreSQL vs SQLite
+                        import os
+                        if 'DATABASE_URL' in os.environ:
+                            # PostgreSQL uses %s for parameters
+                            cursor.execute(
+                                "DELETE FROM ohlcv_data WHERE symbol = %s AND exchange = %s AND date(timestamp) BETWEEN %s AND %s",
+                                (symbol, exchange_id, min_date, max_date)
+                            )
+                        else:
+                            # SQLite uses ? for parameters
+                            cursor.execute(
+                                "DELETE FROM ohlcv_data WHERE symbol = ? AND exchange = ? AND date(timestamp) BETWEEN ? AND ?",
+                                (symbol, exchange_id, min_date, max_date)
+                            )
                         conn.commit()
                         conn.close()
                         
@@ -126,30 +178,63 @@ def get_latest_prices(symbols=None, exchange_id='binance'):
         conn = get_db_connection()
         cursor = conn.cursor()
         
+        # Check what database we're using
+        import os
+        is_postgres = 'DATABASE_URL' in os.environ
+        
         if symbols:
-            placeholders = ','.join(['?'] * len(symbols))
-            query = f"""
-                SELECT symbol, exchange, timestamp, close 
-                FROM ohlcv_data
-                WHERE (symbol, exchange, timestamp) IN (
-                    SELECT symbol, exchange, MAX(timestamp)
+            if is_postgres:
+                # PostgreSQL
+                placeholders = ','.join(['%s'] * len(symbols))
+                query = f"""
+                    SELECT symbol, exchange, timestamp, close 
                     FROM ohlcv_data
-                    WHERE symbol IN ({placeholders}) AND exchange = ?
-                    GROUP BY symbol, exchange
-                )
-            """
+                    WHERE (symbol, exchange, timestamp) IN (
+                        SELECT symbol, exchange, MAX(timestamp)
+                        FROM ohlcv_data
+                        WHERE symbol IN ({placeholders}) AND exchange = %s
+                        GROUP BY symbol, exchange
+                    )
+                """
+            else:
+                # SQLite
+                placeholders = ','.join(['?'] * len(symbols))
+                query = f"""
+                    SELECT symbol, exchange, timestamp, close 
+                    FROM ohlcv_data
+                    WHERE (symbol, exchange, timestamp) IN (
+                        SELECT symbol, exchange, MAX(timestamp)
+                        FROM ohlcv_data
+                        WHERE symbol IN ({placeholders}) AND exchange = ?
+                        GROUP BY symbol, exchange
+                    )
+                """
             cursor.execute(query, symbols + [exchange_id])
         else:
-            query = """
-                SELECT symbol, exchange, timestamp, close 
-                FROM ohlcv_data
-                WHERE (symbol, exchange, timestamp) IN (
-                    SELECT symbol, exchange, MAX(timestamp)
+            if is_postgres:
+                # PostgreSQL
+                query = """
+                    SELECT symbol, exchange, timestamp, close 
                     FROM ohlcv_data
-                    WHERE exchange = ?
-                    GROUP BY symbol, exchange
-                )
-            """
+                    WHERE (symbol, exchange, timestamp) IN (
+                        SELECT symbol, exchange, MAX(timestamp)
+                        FROM ohlcv_data
+                        WHERE exchange = %s
+                        GROUP BY symbol, exchange
+                    )
+                """
+            else:
+                # SQLite
+                query = """
+                    SELECT symbol, exchange, timestamp, close 
+                    FROM ohlcv_data
+                    WHERE (symbol, exchange, timestamp) IN (
+                        SELECT symbol, exchange, MAX(timestamp)
+                        FROM ohlcv_data
+                        WHERE exchange = ?
+                        GROUP BY symbol, exchange
+                    )
+                """
             cursor.execute(query, [exchange_id])
             
         results = cursor.fetchall()
