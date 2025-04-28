@@ -11,13 +11,31 @@ from data_collection.custom_sources import (
 from data_collection.exchange_data import update_exchange_data
 from data_collection.news_data import update_news_data
 from data_collection.social_data import update_social_data
+import os
 from utils.logging_config import get_logger
 
 logger = get_logger(__name__)
 
 def show():
     """Display the data sources management page"""
-    st.title("Data Sources Management")
+    st.markdown("""
+    <h1 style="font-size: 2.5rem; font-weight: 700; margin-bottom: 1.5rem; 
+               background: linear-gradient(to right, #00B0F0, #00D1C4); 
+               -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+        Data Sources Management
+    </h1>
+    """, unsafe_allow_html=True)
+    
+    # Introduction message
+    st.markdown("""
+    <div style="background-color: rgba(0, 176, 240, 0.1); border-left: 4px solid #00B0F0; 
+                padding: 0.8rem; border-radius: 0px 8px 8px 0px; margin-bottom: 1.5rem;">
+        <p style="margin: 0; padding: 0;">
+            Configure and manage data sources for your cryptocurrency analysis. Add custom data sources, 
+            update existing sources, and monitor data collection status across exchanges, news, and social media.
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
     
     # Create tabs for different sections
     tabs = st.tabs(["Exchanges", "News", "Social Media", "Custom Sources"])
@@ -40,7 +58,11 @@ def show():
 
 def show_exchange_sources():
     """Display exchange data sources"""
-    st.header("Cryptocurrency Exchanges")
+    st.markdown("""
+    <h2 style="font-weight: 600; color: #00B0F0; margin-bottom: 1rem;">
+        Cryptocurrency Exchanges
+    </h2>
+    """, unsafe_allow_html=True)
     
     try:
         # Load current exchange configuration
@@ -143,7 +165,11 @@ def show_exchange_sources():
 
 def show_news_sources():
     """Display news data sources"""
-    st.header("News Sources")
+    st.markdown("""
+    <h2 style="font-weight: 600; color: #00B0F0; margin-bottom: 1rem;">
+        News Sources
+    </h2>
+    """, unsafe_allow_html=True)
     
     try:
         # Load current news configuration
@@ -264,7 +290,11 @@ def show_news_sources():
 
 def show_social_sources():
     """Display social media data sources"""
-    st.header("Social Media Sources")
+    st.markdown("""
+    <h2 style="font-weight: 600; color: #00B0F0; margin-bottom: 1rem;">
+        Social Media Sources
+    </h2>
+    """, unsafe_allow_html=True)
     
     try:
         # Load current social media configuration
@@ -415,7 +445,11 @@ def show_social_sources():
 
 def show_custom_sources():
     """Display and manage custom data sources"""
-    st.header("Custom Data Sources")
+    st.markdown("""
+    <h2 style="font-weight: 600; color: #00B0F0; margin-bottom: 1rem;">
+        Custom Data Sources
+    </h2>
+    """, unsafe_allow_html=True)
     
     try:
         # Get existing custom sources
