@@ -1,0 +1,138 @@
+/* Custom styles for the crypto analysis platform */
+
+/* Button styling */
+.stButton > button {
+    background: linear-gradient(to right, #00B0F0, #00D1C4);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 0.5rem 1rem;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.stButton > button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 176, 240, 0.3);
+}
+
+.stButton > button:active {
+    transform: translateY(0px);
+}
+
+/* Card-like elements */
+div[data-testid="stVerticalBlock"] div[data-testid="stVerticalBlock"] {
+    background-color: rgba(38, 39, 48, 0.3);
+    border-radius: 10px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* Metrics styling */
+div[data-testid="stMetric"] {
+    background-color: rgba(0, 176, 240, 0.1);
+    border-radius: 8px;
+    padding: 1rem;
+    border-left: 4px solid #00B0F0;
+}
+
+div[data-testid="stMetric"] label {
+    color: #00B0F0 !important;
+    font-weight: 600 !important;
+}
+
+div[data-testid="stMetric"] p {
+    font-size: 1.8rem !important;
+    font-weight: 700 !important;
+    color: #FAFAFA !important;
+}
+
+/* Tables styling */
+div[data-testid="stTable"] {
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+/* Charts styling */
+div[data-testid="element-container"] div[data-testid="stArrowVegaLiteChart"] {
+    background-color: rgba(38, 39, 48, 0.3);
+    border-radius: 10px;
+    padding: 1rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* Tabs styling */
+div.stTabs [data-baseweb="tab-list"] {
+    gap: 8px;
+}
+
+div.stTabs [data-baseweb="tab"] {
+    height: 50px;
+    white-space: pre-wrap;
+    background-color: rgba(38, 39, 48, 0.3);
+    border-radius: 8px 8px 0px 0px;
+    gap: 1px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+}
+
+div.stTabs [aria-selected="true"] {
+    background-color: rgba(0, 176, 240, 0.2);
+    border-bottom: 2px solid #00B0F0;
+}
+
+/* Expander styling */
+.streamlit-expanderHeader {
+    font-weight: 600;
+    color: #00B0F0;
+    background-color: rgba(38, 39, 48, 0.5);
+    border-radius: 8px;
+}
+
+.streamlit-expanderContent {
+    background-color: rgba(38, 39, 48, 0.3);
+    border-radius: 0px 0px 8px 8px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Sidebar styling */
+section[data-testid="stSidebar"] {
+    background-color: rgba(14, 17, 23, 0.9);
+    border-right: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+section[data-testid="stSidebar"] .stButton > button {
+    width: 100%;
+}
+
+/* Progress bar styling */
+div[role="progressbar"] > div:first-child {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+div[role="progressbar"] > div:nth-child(2) {
+    background-image: linear-gradient(to right, #00B0F0, #00D1C4);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(0, 176, 240, 0.5);
+    border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 176, 240, 0.8);
+}

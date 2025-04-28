@@ -60,6 +60,15 @@ st.set_page_config(
 )
 
 # Add custom CSS for modern UI
+def load_css(file_path):
+    with open(file_path, "r") as f:
+        css = f.read()
+        return css
+
+custom_css = load_css(".streamlit/custom.css")
+st.markdown(f"<style>{custom_css}</style>", unsafe_allow_html=True)
+
+# Additional inline styles
 st.markdown("""
 <style>
     /* Modern card styling */
@@ -69,22 +78,6 @@ st.markdown("""
         padding: 1rem;
         margin-bottom: 1rem;
         border: 1px solid rgba(255, 255, 255, 0.1);
-    }
-    
-    /* Button styling */
-    .stButton > button {
-        border-radius: 5px;
-        font-weight: 500;
-    }
-    
-    /* Header styling */
-    h1, h2, h3 {
-        font-weight: 600 !important;
-    }
-    
-    /* Sidebar styling */
-    [data-testid=stSidebar] {
-        background-image: linear-gradient(to bottom, #262730, #1E1E2E);
     }
     
     /* Navigation buttons styling */
@@ -100,20 +93,18 @@ st.markdown("""
         background-color: rgba(255, 255, 255, 0.05);
         margin-bottom: 5px;
         border: 1px solid rgba(255, 255, 255, 0.1);
+        transition: all 0.3s ease;
     }
     
     div.row-widget.stRadio > div[role="radiogroup"] > label:hover {
-        background-color: rgba(255, 255, 255, 0.1);
+        background-color: rgba(0, 176, 240, 0.2);
+        transform: translateX(2px);
+        cursor: pointer;
     }
     
-    /* Metrics styling */
-    [data-testid="stMetricValue"] {
-        font-weight: bold;
-    }
-    
-    /* Success/info message styling */
-    div.stSuccess, div.stInfo {
-        border-radius: 8px;
+    div.row-widget.stRadio > div[role="radiogroup"] input:checked + label {
+        background-color: rgba(0, 176, 240, 0.3);
+        border-left: 3px solid #00B0F0;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -131,10 +122,14 @@ if 'initialized' not in st.session_state:
 
 # Sidebar header with logo
 st.sidebar.markdown("""
-<div style="display: flex; align-items: center; margin-bottom: 20px;">
-    <div style="font-size: 1.8rem; font-weight: 600; background: linear-gradient(to right, #00B0F0, #00D1C4); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+<div style="text-align: center; margin-bottom: 20px;">
+    <div style="font-size: 2rem; font-weight: 700; background: linear-gradient(to right, #00B0F0, #00D1C4); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 5px;">
         Crypto Analysis
     </div>
+    <div style="font-size: 0.9rem; opacity: 0.8; margin-bottom: 15px;">
+        Your Advanced Trading Companion
+    </div>
+    <div style="height: 3px; background: linear-gradient(to right, #00B0F0, #00D1C4); border-radius: 3px; margin: 10px 0 20px 0;"></div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -203,9 +198,23 @@ elif page == "System Logs":
 # Footer
 st.sidebar.markdown("---")
 st.sidebar.markdown("""
-<div style="text-align: center; opacity: 0.7; font-size: 0.8rem;">
-    <p>Cryptocurrency Analysis Platform</p>
-    <p>Version 1.0.0</p>
-    <p>© 2025</p>
+<div style="text-align: center; margin-top: 20px;">
+    <div style="background: rgba(0, 176, 240, 0.1); padding: 15px; border-radius: 10px; margin-bottom: 15px;">
+        <div style="font-size: 0.9rem; margin-bottom: 8px; color: #00B0F0; font-weight: 600;">Status</div>
+        <div style="font-size: 0.8rem; display: flex; justify-content: space-between; margin-bottom: 5px;">
+            <span>Database:</span> <span style="color: #4CAF50;">✅ Connected</span>
+        </div>
+        <div style="font-size: 0.8rem; display: flex; justify-content: space-between; margin-bottom: 5px;">
+            <span>API Access:</span> <span style="color: #4CAF50;">✅ Active</span>
+        </div>
+        <div style="font-size: 0.8rem; display: flex; justify-content: space-between;">
+            <span>Last Update:</span> <span>Recently</span>
+        </div>
+    </div>
+    <div style="opacity: 0.7; font-size: 0.75rem;">
+        <p>Cryptocurrency Analysis Platform</p>
+        <p>Version 1.0.0</p>
+        <p>© 2025</p>
+    </div>
 </div>
 """, unsafe_allow_html=True)
