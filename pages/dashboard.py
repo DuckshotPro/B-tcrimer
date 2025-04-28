@@ -14,7 +14,25 @@ logger = get_logger(__name__)
 
 def show():
     """Display the main dashboard"""
-    st.title("Cryptocurrency Analysis Dashboard")
+    st.markdown("""
+    <h1 style="font-size: 2.5rem; font-weight: 700; margin-bottom: 1.5rem; 
+               background: linear-gradient(to right, #00B0F0, #00D1C4); 
+               -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+        Cryptocurrency Analysis Dashboard
+    </h1>
+    """, unsafe_allow_html=True)
+    
+    # Introduction message
+    st.markdown("""
+    <div style="background-color: rgba(0, 176, 240, 0.1); border-left: 4px solid #00B0F0; 
+                padding: 0.8rem; border-radius: 0px 8px 8px 0px; margin-bottom: 1.5rem;">
+        <p style="margin: 0; padding: 0;">
+            This dashboard provides real-time cryptocurrency market analysis with price tracking, 
+            sentiment analysis, and technical indicators. Data is collected from multiple exchanges 
+            and updated regularly.
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
     
     try:
         # Get top cryptocurrencies
@@ -134,16 +152,19 @@ def show():
                     mode = "gauge+number",
                     value = overall_sentiment,
                     domain = {'x': [0, 1], 'y': [0, 1]},
-                    title = {'text': "Overall Market Sentiment"},
+                    title = {'text': "Overall Market Sentiment", 'font': {'color': '#FAFAFA', 'size': 18}},
+                    number = {'font': {'color': '#FAFAFA', 'size': 30}},
                     gauge = {
-                        'axis': {'range': [-1, 1]},
-                        'bar': {'color': "darkblue"},
+                        'axis': {'range': [-1, 1], 'tickfont': {'color': '#FAFAFA'}},
+                        'bar': {'color': "#00B0F0"},
+                        'bgcolor': "rgba(255, 255, 255, 0.1)",
+                        'borderwidth': 0,
                         'steps': [
-                            {'range': [-1, -0.5], 'color': "red"},
-                            {'range': [-0.5, -0.1], 'color': "salmon"},
-                            {'range': [-0.1, 0.1], 'color': "lightgray"},
-                            {'range': [0.1, 0.5], 'color': "lightgreen"},
-                            {'range': [0.5, 1], 'color': "green"}
+                            {'range': [-1, -0.5], 'color': "rgba(255, 77, 77, 0.7)"},
+                            {'range': [-0.5, -0.1], 'color': "rgba(255, 153, 153, 0.5)"},
+                            {'range': [-0.1, 0.1], 'color': "rgba(180, 180, 180, 0.3)"},
+                            {'range': [0.1, 0.5], 'color': "rgba(102, 255, 102, 0.5)"},
+                            {'range': [0.5, 1], 'color': "rgba(0, 204, 0, 0.7)"}
                         ],
                     }
                 ))
@@ -370,6 +391,32 @@ def show():
                 xaxis_title="Date",
                 yaxis_title="Price (USDT)",
                 height=500,
+                template="plotly_dark",
+                font=dict(
+                    family="sans-serif",
+                    size=14,
+                    color="#FAFAFA"
+                ),
+                plot_bgcolor="rgba(0, 0, 0, 0)",
+                paper_bgcolor="rgba(0, 0, 0, 0)",
+                margin=dict(t=50, l=40, r=40, b=40),
+                legend=dict(
+                    orientation="h",
+                    yanchor="bottom",
+                    y=1.02,
+                    xanchor="right",
+                    x=1
+                ),
+                xaxis=dict(
+                    showgrid=True, 
+                    gridcolor="rgba(255, 255, 255, 0.1)",
+                    zeroline=False
+                ),
+                yaxis=dict(
+                    showgrid=True, 
+                    gridcolor="rgba(255, 255, 255, 0.1)",
+                    zeroline=False
+                ),
                 xaxis_rangeslider_visible=False
             )
             
@@ -382,10 +429,32 @@ def show():
                 x='timestamp', 
                 y='volume',
                 labels={'timestamp': 'Date', 'volume': 'Volume'},
-                title=f"{selected_symbol} Volume"
+                title=f"{selected_symbol} Volume",
+                color_discrete_sequence=["#00B0F0"]
             )
             
-            volume_fig.update_layout(height=300)
+            volume_fig.update_layout(
+                height=300,
+                template="plotly_dark",
+                font=dict(
+                    family="sans-serif",
+                    size=14,
+                    color="#FAFAFA"
+                ),
+                plot_bgcolor="rgba(0, 0, 0, 0)",
+                paper_bgcolor="rgba(0, 0, 0, 0)",
+                margin=dict(t=50, l=40, r=40, b=40),
+                xaxis=dict(
+                    showgrid=True, 
+                    gridcolor="rgba(255, 255, 255, 0.1)",
+                    zeroline=False
+                ),
+                yaxis=dict(
+                    showgrid=True, 
+                    gridcolor="rgba(255, 255, 255, 0.1)",
+                    zeroline=False
+                )
+            )
             st.plotly_chart(volume_fig, use_container_width=True)
         else:
             st.warning(f"No price data available for {selected_symbol} in the selected time period.")
