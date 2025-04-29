@@ -89,7 +89,7 @@ def show():
                     yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d %H:%M:%S')
                     cursor.execute("""
                         SELECT close FROM ohlcv_data
-                        WHERE symbol = %s AND timestamp <= %s
+                        WHERE symbol = $1 AND timestamp <= $2
                         ORDER BY timestamp DESC
                         LIMIT 1
                     """, (symbol, yesterday))
@@ -132,14 +132,14 @@ def show():
                 
                 cursor.execute("""
                     SELECT AVG(score) FROM sentiment_data
-                    WHERE source = 'news' AND date(analyzed_at) >= %s
+                    WHERE source = 'news' AND date(analyzed_at) >= $1
                 """, (seven_days_ago,))
                 
                 avg_news_sentiment = cursor.fetchone()[0] or 0
                 
                 cursor.execute("""
                     SELECT AVG(score) FROM sentiment_data
-                    WHERE source = 'social' AND date(analyzed_at) >= %s
+                    WHERE source = 'social' AND date(analyzed_at) >= $1
                 """, (seven_days_ago,))
                 
                 avg_social_sentiment = cursor.fetchone()[0] or 0
@@ -204,7 +204,7 @@ def show():
                 cursor.execute("""
                     SELECT timestamp, rsi_14, macd, macd_signal, trend
                     FROM technical_indicators
-                    WHERE symbol = %s
+                    WHERE symbol = $1
                     ORDER BY timestamp DESC
                     LIMIT 1
                 """, (symbol,))
@@ -257,7 +257,7 @@ def show():
             cursor.execute("""
                 SELECT n.title, n.published_date, n.link, s.score
                 FROM news_data n
-                LEFT JOIN sentiment_data s ON n.id = s.item_id AND s.source = 'news'
+                LEFT JOIN sentiment_data s ON CAST(n.id AS TEXT) = s.item_id AND s.source = 'news'
                 ORDER BY n.published_date DESC
                 LIMIT 5
             """)
@@ -329,7 +329,7 @@ def show():
         query = """
             SELECT timestamp, open, high, low, close, volume
             FROM ohlcv_data
-            WHERE symbol = %s AND date(timestamp) >= %s
+            WHERE symbol = $1 AND date(timestamp) >= $2
             ORDER BY timestamp
         """
         
@@ -356,7 +356,7 @@ def show():
             query = """
                 SELECT timestamp, sma_20, sma_50
                 FROM technical_indicators
-                WHERE symbol = %s AND date(timestamp) >= %s
+                WHERE symbol = $1 AND date(timestamp) >= $2
                 ORDER BY timestamp
             """
             

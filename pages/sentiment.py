@@ -328,7 +328,7 @@ def show():
         news_query = """
             SELECT n.title, n.published_date, n.link, s.score, s.magnitude, s.analyzed_at
             FROM news_data n
-            JOIN sentiment_data s ON n.id = s.item_id AND s.source = 'news'
+            JOIN sentiment_data s ON CAST(n.id AS TEXT) = s.item_id AND s.source = 'news'
             ORDER BY s.analyzed_at DESC
             LIMIT 10
         """
