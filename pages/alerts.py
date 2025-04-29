@@ -76,7 +76,7 @@ def show_active_alerts():
     cursor.execute("""
         SELECT id, symbol, alert_type, condition, value, last_checked, last_triggered, notification_sent, created_at
         FROM alerts
-        WHERE active = 1
+        WHERE active = TRUE
         ORDER BY created_at DESC
     """)
     
@@ -435,7 +435,7 @@ def check_all_alerts(email):
         cursor.execute("""
             SELECT id, symbol, alert_type, condition, value, notification_sent
             FROM alerts
-            WHERE active = 1
+            WHERE active = TRUE
         """)
         
         alerts = cursor.fetchall()
