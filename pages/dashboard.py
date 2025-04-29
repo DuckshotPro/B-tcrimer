@@ -41,11 +41,11 @@ def show():
         
         # Get the top cryptocurrencies by recent volume
         cursor.execute("""
-            SELECT DISTINCT symbol FROM ohlcv_data
-            ORDER BY (
-                SELECT MAX(timestamp) FROM ohlcv_data as t2 
-                WHERE t2.symbol = ohlcv_data.symbol
-            ) DESC
+            SELECT DISTINCT symbol, 
+                   (SELECT MAX(timestamp) FROM ohlcv_data as t2 
+                    WHERE t2.symbol = ohlcv_data.symbol) as last_update
+            FROM ohlcv_data
+            ORDER BY last_update DESC
             LIMIT 20
         """)
         
