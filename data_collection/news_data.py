@@ -3,8 +3,11 @@ import pandas as pd
 import datetime
 import time
 import re
+import os
+import random
 from utils.logging_config import get_logger
 from database.operations import get_db_connection
+from data_collection.web_scraper import get_website_text_content
 
 logger = get_logger(__name__)
 
