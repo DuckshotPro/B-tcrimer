@@ -89,7 +89,7 @@ def show():
                     yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d %H:%M:%S')
                     cursor.execute("""
                         SELECT close FROM ohlcv_data
-                        WHERE symbol = $1 AND timestamp <= $2
+                        WHERE symbol = %s AND timestamp <= %s
                         ORDER BY timestamp DESC
                         LIMIT 1
                     """, (symbol, yesterday))
@@ -132,14 +132,14 @@ def show():
                 
                 cursor.execute("""
                     SELECT AVG(score) FROM sentiment_data
-                    WHERE source = 'news' AND date(analyzed_at) >= $1
+                    WHERE source = 'news' AND date(analyzed_at) >= %s
                 """, (seven_days_ago,))
                 
                 avg_news_sentiment = cursor.fetchone()[0] or 0
                 
                 cursor.execute("""
                     SELECT AVG(score) FROM sentiment_data
-                    WHERE source = 'social' AND date(analyzed_at) >= $1
+                    WHERE source = 'social' AND date(analyzed_at) >= %s
                 """, (seven_days_ago,))
                 
                 avg_social_sentiment = cursor.fetchone()[0] or 0
@@ -352,7 +352,7 @@ def show():
             )])
             
             # Get technical indicators if available
-            conn = get_db_connection()
+            # Use SQLAlchemy engine for pandas
             query = """
                 SELECT timestamp, sma_20, sma_50
                 FROM technical_indicators
@@ -360,8 +360,7 @@ def show():
                 ORDER BY timestamp
             """
             
-            indicators = pd.read_sql_query(query, conn, params=[selected_symbol, threshold_date])
-            conn.close()
+            indicators = pd.read_sql_query(query, engine, params=[selected_symbol, threshold_date])
             
             if not indicators.empty:
                 # Convert timestamp if it's a string
