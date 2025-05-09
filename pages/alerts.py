@@ -48,6 +48,42 @@ def show():
         
         st.sidebar.subheader("SMS Notifications")
         
+        # Add alert trigger settings
+        st.sidebar.subheader("Alert Trigger Settings")
+        
+        # Read current trigger settings
+        recurring_alerts = config.getboolean('ALERTS', 'RecurringAlerts', fallback=True)
+        cooldown_minutes = config.getint('ALERTS', 'CooldownMinutes', fallback=60)
+        max_triggers_per_day = config.getint('ALERTS', 'MaxTriggersPerDay', fallback=5)
+        
+        # UI for trigger settings
+        new_recurring = st.sidebar.checkbox("Enable recurring alerts by default", 
+                                        value=recurring_alerts,
+                                        help="When enabled, alerts can trigger multiple times")
+        
+        new_cooldown = st.sidebar.number_input("Cooldown period (minutes)", 
+                                          min_value=1, max_value=1440, 
+                                          value=cooldown_minutes,
+                                          help="Minimum time between alert triggers")
+        
+        new_max_daily = st.sidebar.number_input("Max triggers per day", 
+                                           min_value=1, max_value=100, 
+                                           value=max_triggers_per_day,
+                                           help="Maximum number of times an alert can trigger in a day")
+        
+        # Save button for alert settings
+        if st.sidebar.button("Save Alert Settings"):
+            # Update config
+            config.set('ALERTS', 'RecurringAlerts', str(new_recurring))
+            config.set('ALERTS', 'CooldownMinutes', str(new_cooldown))
+            config.set('ALERTS', 'MaxTriggersPerDay', str(new_max_daily))
+            
+            # Write to file
+            with open('config.ini', 'w') as f:
+                config.write(f)
+            
+            st.sidebar.success("Alert settings saved successfully!")
+        
         if sms_enabled:
             # Check if Twilio credentials are set
             twilio_account_sid = os.environ.get('TWILIO_ACCOUNT_SID')
