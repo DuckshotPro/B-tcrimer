@@ -154,7 +154,8 @@ def show_active_alerts():
     
     # Get all active alerts
     cursor.execute("""
-        SELECT id, symbol, alert_type, condition, value, last_checked, last_triggered, notification_sent, created_at
+        SELECT id, symbol, alert_type, condition, value, last_checked, last_triggered, notification_sent, created_at,
+               trigger_count, daily_trigger_count, daily_count_reset, recurring
         FROM alerts
         WHERE active = TRUE
         ORDER BY created_at DESC
@@ -690,12 +691,76 @@ def check_price_alert(alert_id, symbol, condition, threshold, email):
 def check_indicator_alert(alert_id, symbol, indicator, condition, threshold, email):
     """Check technical indicator alert"""
     try:
-        # Get current indicator value
+        now = datetime.datetime.now()
+        
+        # Get configuration for alert triggers
+        config = configparser.ConfigParser()
+        config.read('config.ini')
+        recurring_alerts = config.getboolean('ALERTS', 'RecurringAlerts', fallback=True)
+        cooldown_minutes = config.getint('ALERTS', 'CooldownMinutes', fallback=60)
+        max_triggers_per_day = config.getint('ALERTS', 'MaxTriggersPerDay', fallback=5)
+        sms_enabled = config.getboolean('ALERTS', 'SMSEnabled', fallback=False)
+        
+        # Get current alert state first
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # Get current and previous values for crosses conditions
+        cursor.execute(
+            """
+            SELECT triggered, last_triggered, notification_sent, 
+                  trigger_count, daily_trigger_count, daily_count_reset, recurring
+            FROM alerts WHERE id = ?
+            """, 
+            (alert_id,)
+        )
+        
+        result = cursor.fetchone()
+        if not result:
+            logger.warning(f"Alert {alert_id} not found")
+            conn.close()
+            return
+            
+        (is_triggered, last_triggered, notification_sent, 
+         trigger_count, daily_trigger_count, daily_count_reset, is_recurring) = result
+        
+        # Check if this alert is in cooldown period
+        in_cooldown = False
+        if last_triggered:
+            cooldown_ends = last_triggered + datetime.timedelta(minutes=cooldown_minutes)
+            if now < cooldown_ends:
+                in_cooldown = True
+                logger.debug(f"Alert {alert_id} still in cooldown period until {cooldown_ends}")
+        
+        # Reset daily counter if it's a new day
+        today = now.date()
+        if not daily_count_reset or daily_count_reset.date() < today:
+            daily_trigger_count = 0
+            daily_count_reset = now
+            cursor.execute(
+                "UPDATE alerts SET daily_trigger_count = 0, daily_count_reset = ? WHERE id = ?",
+                (now, alert_id)
+            )
+            conn.commit()
+        
+        # Check if we've hit the daily limit
+        daily_limit_reached = daily_trigger_count >= max_triggers_per_day
+        
+        # Don't proceed if:
+        # 1. Alert is already triggered and not recurring, or
+        # 2. In cooldown period, or
+        # 3. Daily limit reached
+        if (is_triggered and not is_recurring) or in_cooldown or daily_limit_reached:
+            cursor.execute(
+                "UPDATE alerts SET last_checked = ? WHERE id = ?",
+                (now, alert_id)
+            )
+            conn.commit()
+            conn.close()
+            return
+        
+        # Get current indicator value based on condition type
         if condition.startswith('crosses'):
+            # For crosses conditions, we need current and previous values
             cursor.execute(f"""
                 SELECT {indicator}
                 FROM technical_indicators
@@ -709,7 +774,7 @@ def check_indicator_alert(alert_id, symbol, indicator, condition, threshold, ema
             if len(results) < 2:
                 cursor.execute(
                     "UPDATE alerts SET last_checked = ? WHERE id = ?",
-                    (datetime.datetime.now(), alert_id)
+                    (now, alert_id)
                 )
                 conn.commit()
                 conn.close()
@@ -718,6 +783,7 @@ def check_indicator_alert(alert_id, symbol, indicator, condition, threshold, ema
             current_value = results[0][0]
             previous_value = results[1][0]
         else:
+            # For simple threshold conditions, we only need the current value
             cursor.execute(f"""
                 SELECT {indicator}
                 FROM technical_indicators
@@ -731,18 +797,20 @@ def check_indicator_alert(alert_id, symbol, indicator, condition, threshold, ema
             if not result:
                 cursor.execute(
                     "UPDATE alerts SET last_checked = ? WHERE id = ?",
-                    (datetime.datetime.now(), alert_id)
+                    (now, alert_id)
                 )
                 conn.commit()
                 conn.close()
                 return
             
             current_value = result[0]
+            # Explicitly set previous_value to None for non-crosses conditions
+            previous_value = None
         
         # Update last checked time
         cursor.execute(
             "UPDATE alerts SET last_checked = ? WHERE id = ?",
-            (datetime.datetime.now(), alert_id)
+            (now, alert_id)
         )
         
         conn.commit()
@@ -750,31 +818,37 @@ def check_indicator_alert(alert_id, symbol, indicator, condition, threshold, ema
         # Check alert condition
         triggered = False
         
-        if condition == 'above' and current_value > threshold:
-            triggered = True
-        elif condition == 'below' and current_value < threshold:
-            triggered = True
-        elif condition == 'crosses above' and previous_value <= threshold and current_value > threshold:
-            triggered = True
-        elif condition == 'crosses below' and previous_value >= threshold and current_value < threshold:
-            triggered = True
+        if condition.startswith('crosses'):
+            # We know previous_value is defined for crosses conditions based on earlier code
+            if condition == 'crosses above' and previous_value <= threshold and current_value > threshold:
+                triggered = True
+            elif condition == 'crosses below' and previous_value >= threshold and current_value < threshold:
+                triggered = True
+        else:
+            # Simple threshold conditions
+            if condition == 'above' and current_value > threshold:
+                triggered = True
+            elif condition == 'below' and current_value < threshold:
+                triggered = True
         
         if triggered:
-            # Get config for SMS alerts
-            config = configparser.ConfigParser()
-            config.read('config.ini')
-            sms_enabled = config.getboolean('ALERTS', 'SMSEnabled', fallback=False)
+            # Increment counters
+            trigger_count += 1
+            daily_trigger_count += 1
             
             # Update alert
             cursor.execute(
                 """
                 UPDATE alerts 
-                SET triggered = 1, last_triggered = ?, notification_sent = ?
+                SET triggered = 1, last_triggered = ?, notification_sent = ?,
+                    trigger_count = ?, daily_trigger_count = ?
                 WHERE id = ?
                 """,
                 (
-                    datetime.datetime.now(), 
+                    now, 
                     1 if (email or sms_enabled) else 0,
+                    trigger_count,
+                    daily_trigger_count,
                     alert_id
                 )
             )
@@ -782,10 +856,10 @@ def check_indicator_alert(alert_id, symbol, indicator, condition, threshold, ema
             conn.commit()
             conn.close()
             
-            logger.info(f"Indicator alert triggered for {symbol} {indicator} {condition} {threshold}")
-            
             # Format indicator name for display
             indicator_name = indicator.upper() if indicator in ['macd', 'rsi'] else ' '.join(part.capitalize() for part in indicator.split('_'))
+            
+            logger.info(f"Indicator alert triggered for {symbol} {indicator_name} {condition} {threshold} (count: {trigger_count})")
             
             # Send email notification if configured
             if email:
@@ -801,6 +875,14 @@ def check_indicator_alert(alert_id, symbol, indicator, condition, threshold, ema
                 else:
                     logger.warning("SMS alerts enabled but owner phone number not configured")
         else:
+            # If condition no longer met, reset triggered status for recurring alerts
+            if is_triggered and is_recurring and not in_cooldown:
+                cursor.execute(
+                    "UPDATE alerts SET triggered = 0 WHERE id = ?",
+                    (alert_id,)
+                )
+                conn.commit()
+                logger.debug(f"Reset triggered status for recurring alert {alert_id}")
             conn.close()
     
     except Exception as e:
@@ -809,6 +891,73 @@ def check_indicator_alert(alert_id, symbol, indicator, condition, threshold, ema
 def check_sentiment_alert(alert_id, symbol, source, condition, threshold, email):
     """Check sentiment-based alert"""
     try:
+        now = datetime.datetime.now()
+        
+        # Get configuration for alert triggers
+        config = configparser.ConfigParser()
+        config.read('config.ini')
+        recurring_alerts = config.getboolean('ALERTS', 'RecurringAlerts', fallback=True)
+        cooldown_minutes = config.getint('ALERTS', 'CooldownMinutes', fallback=60)
+        max_triggers_per_day = config.getint('ALERTS', 'MaxTriggersPerDay', fallback=5)
+        sms_enabled = config.getboolean('ALERTS', 'SMSEnabled', fallback=False)
+        
+        # Get current alert state first
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            """
+            SELECT triggered, last_triggered, notification_sent, 
+                  trigger_count, daily_trigger_count, daily_count_reset, recurring
+            FROM alerts WHERE id = ?
+            """, 
+            (alert_id,)
+        )
+        
+        result = cursor.fetchone()
+        if not result:
+            logger.warning(f"Alert {alert_id} not found")
+            conn.close()
+            return
+            
+        (is_triggered, last_triggered, notification_sent, 
+         trigger_count, daily_trigger_count, daily_count_reset, is_recurring) = result
+        
+        # Check if this alert is in cooldown period
+        in_cooldown = False
+        if last_triggered:
+            cooldown_ends = last_triggered + datetime.timedelta(minutes=cooldown_minutes)
+            if now < cooldown_ends:
+                in_cooldown = True
+                logger.debug(f"Alert {alert_id} still in cooldown period until {cooldown_ends}")
+        
+        # Reset daily counter if it's a new day
+        today = now.date()
+        if not daily_count_reset or daily_count_reset.date() < today:
+            daily_trigger_count = 0
+            daily_count_reset = now
+            cursor.execute(
+                "UPDATE alerts SET daily_trigger_count = 0, daily_count_reset = ? WHERE id = ?",
+                (now, alert_id)
+            )
+            conn.commit()
+        
+        # Check if we've hit the daily limit
+        daily_limit_reached = daily_trigger_count >= max_triggers_per_day
+        
+        # Don't proceed if:
+        # 1. Alert is already triggered and not recurring, or
+        # 2. In cooldown period, or
+        # 3. Daily limit reached
+        if (is_triggered and not is_recurring) or in_cooldown or daily_limit_reached:
+            cursor.execute(
+                "UPDATE alerts SET last_checked = ? WHERE id = ?",
+                (now, alert_id)
+            )
+            conn.commit()
+            conn.close()
+            return
+        
         # Get sentiment data
         from analysis.sentiment_analysis import get_cryptocurrency_sentiment
         
@@ -823,15 +972,13 @@ def check_sentiment_alert(alert_id, symbol, source, condition, threshold, email)
             current_value = sentiment_data['avg_social_sentiment']
         else:
             logger.warning(f"Unknown sentiment source: {source}")
+            conn.close()
             return
         
         # Update last checked time
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
         cursor.execute(
             "UPDATE alerts SET last_checked = ? WHERE id = ?",
-            (datetime.datetime.now(), alert_id)
+            (now, alert_id)
         )
         
         conn.commit()
@@ -845,21 +992,23 @@ def check_sentiment_alert(alert_id, symbol, source, condition, threshold, email)
             triggered = True
         
         if triggered:
-            # Get config for SMS alerts
-            config = configparser.ConfigParser()
-            config.read('config.ini')
-            sms_enabled = config.getboolean('ALERTS', 'SMSEnabled', fallback=False)
+            # Increment counters
+            trigger_count += 1
+            daily_trigger_count += 1
             
             # Update alert
             cursor.execute(
                 """
                 UPDATE alerts 
-                SET triggered = 1, last_triggered = ?, notification_sent = ?
+                SET triggered = 1, last_triggered = ?, notification_sent = ?,
+                    trigger_count = ?, daily_trigger_count = ?
                 WHERE id = ?
                 """,
                 (
-                    datetime.datetime.now(), 
+                    now, 
                     1 if (email or sms_enabled) else 0,
+                    trigger_count,
+                    daily_trigger_count,
                     alert_id
                 )
             )
@@ -867,7 +1016,7 @@ def check_sentiment_alert(alert_id, symbol, source, condition, threshold, email)
             conn.commit()
             conn.close()
             
-            logger.info(f"Sentiment alert triggered for {symbol} {source} sentiment {condition} {threshold}")
+            logger.info(f"Sentiment alert triggered for {symbol} {source} sentiment {condition} {threshold} (count: {trigger_count})")
             
             # Send email notification if configured
             if email:
@@ -883,6 +1032,14 @@ def check_sentiment_alert(alert_id, symbol, source, condition, threshold, email)
                 else:
                     logger.warning("SMS alerts enabled but owner phone number not configured")
         else:
+            # If condition no longer met, reset triggered status for recurring alerts
+            if is_triggered and is_recurring and not in_cooldown:
+                cursor.execute(
+                    "UPDATE alerts SET triggered = 0 WHERE id = ?",
+                    (alert_id,)
+                )
+                conn.commit()
+                logger.debug(f"Reset triggered status for recurring alert {alert_id}")
             conn.close()
     
     except Exception as e:
