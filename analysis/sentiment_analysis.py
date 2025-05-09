@@ -110,30 +110,66 @@ def analyze_news_sentiment(days_back=7, limit=100, provider='basic'):
         # Calculate the date threshold
         threshold_date = (datetime.datetime.now() - datetime.timedelta(days=days_back)).strftime('%Y-%m-%d')
         
+        import os
         # Check if content column exists in the news_data table
-        cursor.execute("PRAGMA table_info(news_data)")
-        columns = [column[1] for column in cursor.fetchall()]
+        if 'DATABASE_URL' in os.environ:
+            # PostgreSQL
+            cursor.execute("""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = 'news_data'
+            """)
+            columns = [column[0] for column in cursor.fetchall()]
+        else:
+            # SQLite
+            cursor.execute("PRAGMA table_info(news_data)")
+            columns = [column[1] for column in cursor.fetchall()]
+            
         has_content_column = 'content' in columns
         
-        # Get news articles that haven't been analyzed yet
-        if has_content_column:
-            query = """
-                SELECT n.id, n.title, n.description, n.published_date, n.content
-                FROM news_data n
-                LEFT JOIN sentiment_data s ON n.id = s.item_id AND s.source = 'news'
-                WHERE s.id IS NULL AND date(n.published_date) >= ?
-                ORDER BY n.published_date DESC
-                LIMIT ?
-            """
+        # Check if we're using PostgreSQL or SQLite
+        if 'DATABASE_URL' in os.environ:
+            # PostgreSQL
+            # Get news articles that haven't been analyzed yet
+            if has_content_column:
+                query = """
+                    SELECT n.id, n.title, n.description, n.published_date, n.content
+                    FROM news_data n
+                    LEFT JOIN sentiment_data s ON n.id = s.item_id AND s.source = 'news'
+                    WHERE s.id IS NULL AND date(n.published_date) >= %s
+                    ORDER BY n.published_date DESC
+                    LIMIT %s
+                """
+            else:
+                query = """
+                    SELECT n.id, n.title, n.description, n.published_date
+                    FROM news_data n
+                    LEFT JOIN sentiment_data s ON n.id = s.item_id AND s.source = 'news'
+                    WHERE s.id IS NULL AND date(n.published_date) >= %s
+                    ORDER BY n.published_date DESC
+                    LIMIT %s
+                """
         else:
-            query = """
-                SELECT n.id, n.title, n.description, n.published_date
-                FROM news_data n
-                LEFT JOIN sentiment_data s ON n.id = s.item_id AND s.source = 'news'
-                WHERE s.id IS NULL AND date(n.published_date) >= ?
-                ORDER BY n.published_date DESC
-                LIMIT ?
-            """
+            # SQLite
+            # Get news articles that haven't been analyzed yet
+            if has_content_column:
+                query = """
+                    SELECT n.id, n.title, n.description, n.published_date, n.content
+                    FROM news_data n
+                    LEFT JOIN sentiment_data s ON n.id = s.item_id AND s.source = 'news'
+                    WHERE s.id IS NULL AND date(n.published_date) >= ?
+                    ORDER BY n.published_date DESC
+                    LIMIT ?
+                """
+            else:
+                query = """
+                    SELECT n.id, n.title, n.description, n.published_date
+                    FROM news_data n
+                    LEFT JOIN sentiment_data s ON n.id = s.item_id AND s.source = 'news'
+                    WHERE s.id IS NULL AND date(n.published_date) >= ?
+                    ORDER BY n.published_date DESC
+                    LIMIT ?
+                """
         
         cursor.execute(query, (threshold_date, limit))
         news_articles = cursor.fetchall()
@@ -174,20 +210,39 @@ def analyze_news_sentiment(days_back=7, limit=100, provider='basic'):
                 sentiment = analyze_text_sentiment_basic(text)
                 
             # Store sentiment results
-            cursor.execute(
-                """
-                INSERT INTO sentiment_data (item_id, source, score, magnitude, provider, analyzed_at)
-                VALUES (?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    article_id,
-                    'news',
-                    sentiment['score'],
-                    sentiment['magnitude'],
-                    sentiment['provider'],
-                    datetime.datetime.now()
+            import os
+            if 'DATABASE_URL' in os.environ:
+                # PostgreSQL
+                cursor.execute(
+                    """
+                    INSERT INTO sentiment_data (item_id, source, score, magnitude, provider, analyzed_at)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        article_id,
+                        'news',
+                        sentiment['score'],
+                        sentiment['magnitude'],
+                        sentiment['provider'],
+                        datetime.datetime.now()
+                    )
                 )
-            )
+            else:
+                # SQLite
+                cursor.execute(
+                    """
+                    INSERT INTO sentiment_data (item_id, source, score, magnitude, provider, analyzed_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        article_id,
+                        'news',
+                        sentiment['score'],
+                        sentiment['magnitude'],
+                        sentiment['provider'],
+                        datetime.datetime.now()
+                    )
+                )
             count += 1
             
         conn.commit()
@@ -209,14 +264,28 @@ def analyze_social_sentiment(days_back=3, limit=200, provider='basic'):
         threshold_date = (datetime.datetime.now() - datetime.timedelta(days=days_back)).strftime('%Y-%m-%d')
         
         # Get social posts that haven't been analyzed yet
-        query = """
-            SELECT s.id, s.text, s.created_at
-            FROM social_data s
-            LEFT JOIN sentiment_data sd ON s.id = sd.item_id AND sd.source = 'social'
-            WHERE sd.id IS NULL AND date(s.created_at) >= ?
-            ORDER BY s.created_at DESC
-            LIMIT ?
-        """
+        # Check if we're using PostgreSQL or SQLite
+        import os
+        if 'DATABASE_URL' in os.environ:
+            # PostgreSQL
+            query = """
+                SELECT s.id, s.text, s.created_at
+                FROM social_data s
+                LEFT JOIN sentiment_data sd ON s.id = sd.item_id AND sd.source = 'social'
+                WHERE sd.id IS NULL AND date(s.created_at) >= %s
+                ORDER BY s.created_at DESC
+                LIMIT %s
+            """
+        else:
+            # SQLite
+            query = """
+                SELECT s.id, s.text, s.created_at
+                FROM social_data s
+                LEFT JOIN sentiment_data sd ON s.id = sd.item_id AND sd.source = 'social'
+                WHERE sd.id IS NULL AND date(s.created_at) >= ?
+                ORDER BY s.created_at DESC
+                LIMIT ?
+            """
         
         cursor.execute(query, (threshold_date, limit))
         social_posts = cursor.fetchall()
@@ -244,20 +313,39 @@ def analyze_social_sentiment(days_back=3, limit=200, provider='basic'):
                 sentiment = analyze_text_sentiment_basic(text)
                 
             # Store sentiment results
-            cursor.execute(
-                """
-                INSERT INTO sentiment_data (item_id, source, score, magnitude, provider, analyzed_at)
-                VALUES (?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    post_id,
-                    'social',
-                    sentiment['score'],
-                    sentiment['magnitude'],
-                    sentiment['provider'],
-                    datetime.datetime.now()
+            import os
+            if 'DATABASE_URL' in os.environ:
+                # PostgreSQL
+                cursor.execute(
+                    """
+                    INSERT INTO sentiment_data (item_id, source, score, magnitude, provider, analyzed_at)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        post_id,
+                        'social',
+                        sentiment['score'],
+                        sentiment['magnitude'],
+                        sentiment['provider'],
+                        datetime.datetime.now()
+                    )
                 )
-            )
+            else:
+                # SQLite
+                cursor.execute(
+                    """
+                    INSERT INTO sentiment_data (item_id, source, score, magnitude, provider, analyzed_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        post_id,
+                        'social',
+                        sentiment['score'],
+                        sentiment['magnitude'],
+                        sentiment['provider'],
+                        datetime.datetime.now()
+                    )
+                )
             count += 1
             
         conn.commit()
@@ -290,29 +378,56 @@ def get_sentiment_trends(days_back=30, interval='day'):
         else:
             date_group = "date(analyzed_at)"  # Default to day
         
-        # Get aggregated sentiment for news
-        query_news = f"""
-            SELECT {date_group} as period, 
-                   AVG(score) as avg_score, 
-                   AVG(magnitude) as avg_magnitude,
-                   COUNT(*) as count
-            FROM sentiment_data
-            WHERE source = 'news' AND date(analyzed_at) >= ?
-            GROUP BY period
-            ORDER BY period
-        """
-        
-        # Get aggregated sentiment for social media
-        query_social = f"""
-            SELECT {date_group} as period, 
-                   AVG(score) as avg_score, 
-                   AVG(magnitude) as avg_magnitude,
-                   COUNT(*) as count
-            FROM sentiment_data
-            WHERE source = 'social' AND date(analyzed_at) >= ?
-            GROUP BY period
-            ORDER BY period
-        """
+        import os
+        # Check if using PostgreSQL
+        if 'DATABASE_URL' in os.environ:
+            # Get aggregated sentiment for news with PostgreSQL
+            query_news = f"""
+                SELECT {date_group} as period, 
+                       AVG(score) as avg_score, 
+                       AVG(magnitude) as avg_magnitude,
+                       COUNT(*) as count
+                FROM sentiment_data
+                WHERE source = 'news' AND date(analyzed_at) >= %s
+                GROUP BY period
+                ORDER BY period
+            """
+            
+            # Get aggregated sentiment for social media with PostgreSQL
+            query_social = f"""
+                SELECT {date_group} as period, 
+                       AVG(score) as avg_score, 
+                       AVG(magnitude) as avg_magnitude,
+                       COUNT(*) as count
+                FROM sentiment_data
+                WHERE source = 'social' AND date(analyzed_at) >= %s
+                GROUP BY period
+                ORDER BY period
+            """
+        else:
+            # Get aggregated sentiment for news with SQLite
+            query_news = f"""
+                SELECT {date_group} as period, 
+                       AVG(score) as avg_score, 
+                       AVG(magnitude) as avg_magnitude,
+                       COUNT(*) as count
+                FROM sentiment_data
+                WHERE source = 'news' AND date(analyzed_at) >= ?
+                GROUP BY period
+                ORDER BY period
+            """
+            
+            # Get aggregated sentiment for social media with SQLite
+            query_social = f"""
+                SELECT {date_group} as period, 
+                       AVG(score) as avg_score, 
+                       AVG(magnitude) as avg_magnitude,
+                       COUNT(*) as count
+                FROM sentiment_data
+                WHERE source = 'social' AND date(analyzed_at) >= ?
+                GROUP BY period
+                ORDER BY period
+            """
         
         cursor.execute(query_news, (threshold_date,))
         news_trends = cursor.fetchall()
@@ -364,25 +479,51 @@ def get_cryptocurrency_sentiment(symbol, days_back=30):
         # Calculate the date threshold
         threshold_date = (datetime.datetime.now() - datetime.timedelta(days=days_back)).strftime('%Y-%m-%d')
         
-        # Get news sentiment for articles mentioning the cryptocurrency
-        query_news = """
-            SELECT n.id, n.title, n.published_date, s.score, s.magnitude
-            FROM news_data n
-            JOIN sentiment_data s ON n.id = s.item_id AND s.source = 'news'
-            WHERE (n.title LIKE ? OR n.description LIKE ?) 
-                AND date(n.published_date) >= ?
-            ORDER BY n.published_date DESC
-        """
+        import os
         
-        # Get social sentiment for posts mentioning the cryptocurrency
-        query_social = """
-            SELECT s.id, s.text, s.created_at, sd.score, sd.magnitude
-            FROM social_data s
-            JOIN sentiment_data sd ON s.id = sd.item_id AND sd.source = 'social'
-            WHERE (s.text LIKE ? OR s.query = ?) 
-                AND date(s.created_at) >= ?
-            ORDER BY s.created_at DESC
-        """
+        # Check if using PostgreSQL or SQLite
+        if 'DATABASE_URL' in os.environ:
+            # PostgreSQL
+            # Get news sentiment for articles mentioning the cryptocurrency
+            query_news = """
+                SELECT n.id, n.title, n.published_date, s.score, s.magnitude
+                FROM news_data n
+                JOIN sentiment_data s ON n.id = s.item_id AND s.source = 'news'
+                WHERE (n.title LIKE %s OR n.description LIKE %s) 
+                    AND date(n.published_date) >= %s
+                ORDER BY n.published_date DESC
+            """
+            
+            # Get social sentiment for posts mentioning the cryptocurrency
+            query_social = """
+                SELECT s.id, s.text, s.created_at, sd.score, sd.magnitude
+                FROM social_data s
+                JOIN sentiment_data sd ON s.id = sd.item_id AND sd.source = 'social'
+                WHERE (s.text LIKE %s OR s.query = %s) 
+                    AND date(s.created_at) >= %s
+                ORDER BY s.created_at DESC
+            """
+        else:
+            # SQLite
+            # Get news sentiment for articles mentioning the cryptocurrency
+            query_news = """
+                SELECT n.id, n.title, n.published_date, s.score, s.magnitude
+                FROM news_data n
+                JOIN sentiment_data s ON n.id = s.item_id AND s.source = 'news'
+                WHERE (n.title LIKE ? OR n.description LIKE ?) 
+                    AND date(n.published_date) >= ?
+                ORDER BY n.published_date DESC
+            """
+            
+            # Get social sentiment for posts mentioning the cryptocurrency
+            query_social = """
+                SELECT s.id, s.text, s.created_at, sd.score, sd.magnitude
+                FROM social_data s
+                JOIN sentiment_data sd ON s.id = sd.item_id AND sd.source = 'social'
+                WHERE (s.text LIKE ? OR s.query = ?) 
+                    AND date(s.created_at) >= ?
+                ORDER BY s.created_at DESC
+            """
         
         search_pattern = f"%{base_symbol}%"
         
