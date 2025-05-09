@@ -120,6 +120,11 @@ class Alert(Base):
     last_triggered = Column(DateTime, nullable=True)
     notification_sent = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime, nullable=False)
+    # New fields for enhanced trigger functionality
+    trigger_count = Column(Integer, nullable=False, default=0)
+    daily_trigger_count = Column(Integer, nullable=False, default=0)
+    daily_count_reset = Column(DateTime, nullable=True)
+    recurring = Column(Boolean, nullable=False, default=True)
     
     def __repr__(self):
         return f"<Alert(symbol='{self.symbol}', type='{self.alert_type}')>"

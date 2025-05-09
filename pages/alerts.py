@@ -555,19 +555,77 @@ def check_price_alert(alert_id, symbol, condition, threshold, email):
             return
         
         current_price = latest_prices[symbol]['price']
+        now = datetime.datetime.now()
+        
+        # Get configuration for alert triggers
+        config = configparser.ConfigParser()
+        config.read('config.ini')
+        recurring_alerts = config.getboolean('ALERTS', 'RecurringAlerts', fallback=True)
+        cooldown_minutes = config.getint('ALERTS', 'CooldownMinutes', fallback=60)
+        max_triggers_per_day = config.getint('ALERTS', 'MaxTriggersPerDay', fallback=5)
+        sms_enabled = config.getboolean('ALERTS', 'SMSEnabled', fallback=False)
         
         # Update last checked time
         conn = get_db_connection()
         cursor = conn.cursor()
         
+        # First, get the current alert state to check for cooldown and daily limits
         cursor.execute(
-            "UPDATE alerts SET last_checked = ? WHERE id = ?",
-            (datetime.datetime.now(), alert_id)
+            """
+            SELECT triggered, last_triggered, notification_sent, 
+                  trigger_count, daily_trigger_count, daily_count_reset, recurring
+            FROM alerts WHERE id = ?
+            """, 
+            (alert_id,)
         )
         
+        result = cursor.fetchone()
+        if not result:
+            logger.warning(f"Alert {alert_id} not found")
+            conn.close()
+            return
+            
+        (is_triggered, last_triggered, notification_sent, 
+         trigger_count, daily_trigger_count, daily_count_reset, is_recurring) = result
+        
+        # Update last checked time
+        cursor.execute(
+            "UPDATE alerts SET last_checked = ? WHERE id = ?",
+            (now, alert_id)
+        )
         conn.commit()
         
-        # Check alert condition
+        # Check if this alert is in cooldown period
+        in_cooldown = False
+        if last_triggered:
+            cooldown_ends = last_triggered + datetime.timedelta(minutes=cooldown_minutes)
+            if now < cooldown_ends:
+                in_cooldown = True
+                logger.debug(f"Alert {alert_id} still in cooldown period until {cooldown_ends}")
+        
+        # Reset daily counter if it's a new day
+        today = now.date()
+        if not daily_count_reset or daily_count_reset.date() < today:
+            daily_trigger_count = 0
+            daily_count_reset = now
+            cursor.execute(
+                "UPDATE alerts SET daily_trigger_count = 0, daily_count_reset = ? WHERE id = ?",
+                (now, alert_id)
+            )
+            conn.commit()
+        
+        # Check if we've hit the daily limit
+        daily_limit_reached = daily_trigger_count >= max_triggers_per_day
+        
+        # Don't proceed if:
+        # 1. Alert is already triggered and not recurring, or
+        # 2. In cooldown period, or
+        # 3. Daily limit reached
+        if (is_triggered and not is_recurring) or in_cooldown or daily_limit_reached:
+            conn.close()
+            return
+        
+        # Now check the condition
         triggered = False
         
         if condition == 'above' and current_price > threshold:
@@ -576,21 +634,23 @@ def check_price_alert(alert_id, symbol, condition, threshold, email):
             triggered = True
         
         if triggered:
-            # Get config for SMS alerts
-            config = configparser.ConfigParser()
-            config.read('config.ini')
-            sms_enabled = config.getboolean('ALERTS', 'SMSEnabled', fallback=False)
+            # Increment counters
+            trigger_count += 1
+            daily_trigger_count += 1
             
             # Update alert
             cursor.execute(
                 """
                 UPDATE alerts 
-                SET triggered = 1, last_triggered = ?, notification_sent = ?
+                SET triggered = 1, last_triggered = ?, notification_sent = ?,
+                    trigger_count = ?, daily_trigger_count = ?
                 WHERE id = ?
                 """,
                 (
-                    datetime.datetime.now(), 
+                    now, 
                     1 if (email or sms_enabled) else 0,
+                    trigger_count,
+                    daily_trigger_count,
                     alert_id
                 )
             )
@@ -598,7 +658,7 @@ def check_price_alert(alert_id, symbol, condition, threshold, email):
             conn.commit()
             conn.close()
             
-            logger.info(f"Price alert triggered for {symbol} {condition} {threshold}")
+            logger.info(f"Price alert triggered for {symbol} {condition} {threshold} (count: {trigger_count})")
             
             # Send email notification if configured
             if email:
@@ -614,6 +674,14 @@ def check_price_alert(alert_id, symbol, condition, threshold, email):
                 else:
                     logger.warning("SMS alerts enabled but owner phone number not configured")
         else:
+            # If condition no longer met, reset triggered status for recurring alerts
+            if is_triggered and is_recurring and not in_cooldown:
+                cursor.execute(
+                    "UPDATE alerts SET triggered = 0 WHERE id = ?",
+                    (alert_id,)
+                )
+                conn.commit()
+                logger.debug(f"Reset triggered status for recurring alert {alert_id}")
             conn.close()
     
     except Exception as e:
