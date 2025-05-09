@@ -48,7 +48,7 @@ def show():
         
         cursor.execute("""
             SELECT MAX(timestamp) FROM technical_indicators
-            WHERE symbol = ?
+            WHERE symbol = %s
         """, (selected_symbol,))
         
         latest_indicator_time = cursor.fetchone()[0]
@@ -65,12 +65,12 @@ def show():
             if hours_diff < 24:
                 query = """
                     SELECT * FROM technical_indicators
-                    WHERE symbol = ?
+                    WHERE symbol = %s
                     ORDER BY timestamp DESC
                     LIMIT 180  -- Last 180 data points
                 """
                 
-                indicators_df = pd.read_sql_query(query, conn, params=(selected_symbol,))
+                indicators_df = pd.read_sql_query(query, conn, params=[selected_symbol])
                 # Sort by timestamp ascending
                 indicators_df.sort_values('timestamp', inplace=True)
         
