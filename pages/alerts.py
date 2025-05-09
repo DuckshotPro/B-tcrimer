@@ -637,6 +637,18 @@ def show_sentiment_alerts(email):
                 logger.error(f"Error creating sentiment alert: {str(e)}", exc_info=True)
                 st.error(f"Failed to create alert: {str(e)}")
 
+def get_recurring_checkbox():
+    """Utility function to get a recurring alert checkbox with default from config"""
+    config = configparser.ConfigParser()
+    config.read('config.ini')
+    default_recurring = config.getboolean('ALERTS', 'RecurringAlerts', fallback=True)
+    
+    # Return the checkbox
+    return st.checkbox("Recurring alert", 
+                   value=default_recurring,
+                   help="When enabled, this alert can trigger multiple times after cooldown periods")
+
+
 def check_all_alerts(email):
     """Check and process all active alerts"""
     try:
