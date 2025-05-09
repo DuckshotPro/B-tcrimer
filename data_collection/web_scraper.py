@@ -81,8 +81,37 @@ def get_website_text_content(url: str, retries=3, backoff_factor=2.0) -> str:
 def extract_fallback(html_content):
     """Basic fallback extraction method when Trafilatura fails"""
     try:
-        # Use trafilatura's fallback method
-        return trafilatura.extract(html_content, fallback=True, include_comments=False)
+        # Try alternative extraction methods
+        try:
+            # First, try a second attempt with trafilatura but with different options
+            text = trafilatura.extract(html_content, include_comments=False, 
+                                       include_tables=True, include_links=False)
+            if text:
+                return text
+        except:
+            pass
+            
+        # Simple regex-based extraction as a last resort
+        import re
+        # Try to extract content from article or main tags
+        article_match = re.search(r'<article[^>]*>(.*?)</article>', html_content, re.DOTALL)
+        if article_match:
+            content = article_match.group(1)
+            # Remove HTML tags
+            return re.sub(r'<[^>]+>', ' ', content).strip()
+            
+        main_match = re.search(r'<main[^>]*>(.*?)</main>', html_content, re.DOTALL)
+        if main_match:
+            content = main_match.group(1)
+            # Remove HTML tags
+            return re.sub(r'<[^>]+>', ' ', content).strip()
+            
+        # As a last resort, just try to extract all paragraph text
+        paragraphs = re.findall(r'<p[^>]*>(.*?)</p>', html_content, re.DOTALL)
+        if paragraphs:
+            return ' '.join([re.sub(r'<[^>]+>', ' ', p).strip() for p in paragraphs])
+            
+        return ""
     except Exception as e:
         logger.error(f"Fallback extraction failed: {str(e)}")
         return ""

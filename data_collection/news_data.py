@@ -85,6 +85,7 @@ def update_news_data(config):
     try:
         rss_sources = config['NEWS']['Sources'].split(',')
         max_articles = int(config['NEWS']['MaxArticlesPerSource'])
+        scrape_full_content = config['NEWS'].getboolean('ScrapeFullContent', fallback=False)
         
         all_news = pd.DataFrame()
         
@@ -127,6 +128,43 @@ def update_news_data(config):
             new_articles = all_news[~all_news['link'].isin(existing_links)]
             
             if not new_articles.empty:
+                # If configured, scrape full content for new articles
+                if scrape_full_content:
+                    logger.info(f"Scraping full content for {len(new_articles)} articles")
+                    
+                    # Add a content column to store the full article text
+                    new_articles['content'] = ""
+                    
+                    # Select a small random sample of articles to scrape if there are too many
+                    # to avoid overloading the system
+                    articles_to_scrape = new_articles
+                    if len(new_articles) > 10:
+                        sample_size = min(10, len(new_articles))
+                        indices = random.sample(range(len(new_articles)), sample_size)
+                        articles_to_scrape = new_articles.iloc[indices]
+                    
+                    # Scrape full content for each article
+                    for idx, row in articles_to_scrape.iterrows():
+                        try:
+                            url = str(row['link'])
+                            logger.info(f"Scraping content from: {url}")
+                            
+                            # Use our web scraper to get the full article content
+                            content = get_website_text_content(url)
+                            
+                            if content:
+                                # Update the content in the DataFrame
+                                new_articles.at[idx, 'content'] = content
+                                logger.info(f"Successfully scraped content from {url}")
+                            else:
+                                logger.warning(f"Failed to scrape content from {url}")
+                            
+                            # Be gentle with the sources
+                            time.sleep(3)  # Increased delay to be more respectful
+                        except Exception as e:
+                            logger.error(f"Error scraping content from {row['link']}: {str(e)}", exc_info=True)
+                            continue
+                
                 logger.info(f"Storing {len(new_articles)} new articles")
                 store_news_data(new_articles)
             else:
@@ -147,13 +185,27 @@ def get_recent_news(limit=50, days_back=7):
         # Calculate the date threshold
         threshold_date = (datetime.datetime.now() - datetime.timedelta(days=days_back)).strftime('%Y-%m-%d')
         
-        query = """
-            SELECT title, published_date, link, description, source
-            FROM news_data
-            WHERE date(published_date) >= ?
-            ORDER BY published_date DESC
-            LIMIT ?
-        """
+        # Check if content column exists in the news_data table
+        cursor.execute("PRAGMA table_info(news_data)")
+        columns = [column[1] for column in cursor.fetchall()]
+        has_content = 'content' in columns
+        
+        if has_content:
+            query = """
+                SELECT title, published_date, link, description, source, content
+                FROM news_data
+                WHERE date(published_date) >= ?
+                ORDER BY published_date DESC
+                LIMIT ?
+            """
+        else:
+            query = """
+                SELECT title, published_date, link, description, source
+                FROM news_data
+                WHERE date(published_date) >= ?
+                ORDER BY published_date DESC
+                LIMIT ?
+            """
         
         cursor.execute(query, (threshold_date, limit))
         results = cursor.fetchall()
@@ -161,14 +213,19 @@ def get_recent_news(limit=50, days_back=7):
         
         news_list = []
         for row in results:
-            title, published_date, link, description, source = row
-            news_list.append({
-                'title': title,
-                'published_date': published_date,
-                'link': link,
-                'description': description,
-                'source': source
-            })
+            article = {
+                'title': row[0],
+                'published_date': row[1],
+                'link': row[2],
+                'description': row[3],
+                'source': row[4]
+            }
+            
+            # Add content if it exists
+            if has_content and len(row) > 5:
+                article['content'] = row[5] if row[5] else ""
+                
+            news_list.append(article)
         
         return news_list
     except Exception as e:

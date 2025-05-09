@@ -110,15 +110,30 @@ def analyze_news_sentiment(days_back=7, limit=100, provider='basic'):
         # Calculate the date threshold
         threshold_date = (datetime.datetime.now() - datetime.timedelta(days=days_back)).strftime('%Y-%m-%d')
         
+        # Check if content column exists in the news_data table
+        cursor.execute("PRAGMA table_info(news_data)")
+        columns = [column[1] for column in cursor.fetchall()]
+        has_content_column = 'content' in columns
+        
         # Get news articles that haven't been analyzed yet
-        query = """
-            SELECT n.id, n.title, n.description, n.published_date
-            FROM news_data n
-            LEFT JOIN sentiment_data s ON n.id = s.item_id AND s.source = 'news'
-            WHERE s.id IS NULL AND date(n.published_date) >= ?
-            ORDER BY n.published_date DESC
-            LIMIT ?
-        """
+        if has_content_column:
+            query = """
+                SELECT n.id, n.title, n.description, n.published_date, n.content
+                FROM news_data n
+                LEFT JOIN sentiment_data s ON n.id = s.item_id AND s.source = 'news'
+                WHERE s.id IS NULL AND date(n.published_date) >= ?
+                ORDER BY n.published_date DESC
+                LIMIT ?
+            """
+        else:
+            query = """
+                SELECT n.id, n.title, n.description, n.published_date
+                FROM news_data n
+                LEFT JOIN sentiment_data s ON n.id = s.item_id AND s.source = 'news'
+                WHERE s.id IS NULL AND date(n.published_date) >= ?
+                ORDER BY n.published_date DESC
+                LIMIT ?
+            """
         
         cursor.execute(query, (threshold_date, limit))
         news_articles = cursor.fetchall()
@@ -137,10 +152,20 @@ def analyze_news_sentiment(days_back=7, limit=100, provider='basic'):
                 
         count = 0
         for article in news_articles:
-            article_id, title, description, published_date = article
-            
-            # Combine title and description for analysis
-            text = f"{title} {description}" if description else title
+            # Check if we have content column
+            if len(article) > 4:
+                article_id, title, description, published_date, content = article
+                
+                # Use full content if available, otherwise fallback to title and description
+                if content and len(content.strip()) > 0:
+                    logger.info(f"Using full content for sentiment analysis of article: {title}")
+                    text = content
+                else:
+                    text = f"{title} {description}" if description else title
+            else:
+                article_id, title, description, published_date = article
+                # Combine title and description for analysis
+                text = f"{title} {description}" if description else title
             
             # Analyze sentiment
             if provider == 'google_nlp' and client:
