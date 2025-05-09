@@ -12,6 +12,7 @@ class OHLCVData(Base):
     symbol = Column(String(20), nullable=False, index=True)
     exchange = Column(String(20), nullable=False, index=True)
     timestamp = Column(DateTime, nullable=False, index=True)
+    timeframe = Column(String(10), nullable=False, default='1d', index=True)  # '1m', '5m', '1h', '1d'
     open = Column(Float, nullable=False)
     high = Column(Float, nullable=False)
     low = Column(Float, nullable=False)
@@ -19,7 +20,7 @@ class OHLCVData(Base):
     volume = Column(Float, nullable=False)
     
     def __repr__(self):
-        return f"<OHLCVData(symbol='{self.symbol}', timestamp='{self.timestamp}')>"
+        return f"<OHLCVData(symbol='{self.symbol}', timeframe='{self.timeframe}', timestamp='{self.timestamp}')>"
 
 class NewsData(Base):
     """Model for cryptocurrency news articles"""

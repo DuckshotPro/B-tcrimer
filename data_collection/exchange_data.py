@@ -111,9 +111,17 @@ def store_ohlcv_data(df):
 def update_exchange_data(config):
     """Update cryptocurrency data from exchanges"""
     try:
-        # Get list of exchanges from config
+        # Get configuration
         exchange_ids = config['EXCHANGES']['Exchanges'].split(',')
         top_crypto_count = int(config['EXCHANGES']['TopCryptoCount'])
+        timeframes = config['EXCHANGES'].get('Timeframes', '1d').split(',')
+        
+        # Start with the most frequent timeframe for real-time data
+        timeframes.sort(key=lambda tf: {
+            '1m': 1, '5m': 5, '15m': 15, '30m': 30, '1h': 60, '4h': 240, '1d': 1440
+        }.get(tf, 9999))
+        
+        logger.info(f"Starting data collection for timeframes: {timeframes}")
         
         for exchange_id in exchange_ids:
             exchange_id = exchange_id.strip()
@@ -127,47 +135,76 @@ def update_exchange_data(config):
             top_cryptos = get_top_cryptocurrencies(exchange, limit=top_crypto_count)
             logger.info(f"Found {len(top_cryptos)} top cryptocurrencies on {exchange_id}")
             
-            # Fetch and store OHLCV data for each cryptocurrency
-            for symbol in top_cryptos:
-                try:
-                    logger.info(f"Fetching data for {symbol} from {exchange_id}")
-                    df = fetch_ohlcv_data(exchange, symbol)
-                    
-                    if not df.empty:
-                        # Clean up any existing data for this symbol/exchange combination for the same dates
-                        conn = get_db_connection()
-                        min_date = df['timestamp'].min().strftime('%Y-%m-%d')
-                        max_date = df['timestamp'].max().strftime('%Y-%m-%d')
-                        
-                        cursor = conn.cursor()
-                        
-                        # Use different parameter styles for PostgreSQL vs SQLite
-                        import os
-                        if 'DATABASE_URL' in os.environ:
-                            # PostgreSQL uses %s for parameters
-                            cursor.execute(
-                                "DELETE FROM ohlcv_data WHERE symbol = %s AND exchange = %s AND date(timestamp) BETWEEN %s AND %s",
-                                (symbol, exchange_id, min_date, max_date)
-                            )
-                        else:
-                            # SQLite uses ? for parameters
-                            cursor.execute(
-                                "DELETE FROM ohlcv_data WHERE symbol = ? AND exchange = ? AND date(timestamp) BETWEEN ? AND ?",
-                                (symbol, exchange_id, min_date, max_date)
-                            )
-                        conn.commit()
-                        conn.close()
-                        
-                        # Store the new data
-                        store_ohlcv_data(df)
-                    
-                    # Respect rate limits
-                    time.sleep(exchange.rateLimit / 1000)
-                except Exception as e:
-                    logger.error(f"Error processing {symbol} from {exchange_id}: {str(e)}", exc_info=True)
-                    continue
+            # Track successful updates to show progress
+            successful_updates = 0
             
-            logger.info(f"Completed update from exchange: {exchange_id}")
+            # For each cryptocurrency, fetch data for all timeframes
+            for symbol in top_cryptos:
+                for timeframe in timeframes:
+                    try:
+                        # Determine the appropriate limit based on timeframe to avoid fetching too much data
+                        limit_map = {
+                            '1m': 300,    # 5 hours of 1-minute data
+                            '5m': 288,    # 24 hours of 5-minute data
+                            '15m': 192,   # 48 hours of 15-minute data
+                            '30m': 168,   # 3.5 days of 30-minute data
+                            '1h': 168,    # 7 days of hourly data
+                            '4h': 120,    # 20 days of 4-hour data
+                            '1d': 365     # 1 year of daily data
+                        }
+                        limit = limit_map.get(timeframe, 100)
+                        
+                        logger.info(f"Fetching {timeframe} data for {symbol} from {exchange_id}")
+                        df = fetch_ohlcv_data(exchange, symbol, timeframe=timeframe, limit=limit)
+                        
+                        if not df.empty:
+                            # Add timeframe column
+                            df['timeframe'] = timeframe
+                            
+                            # Clean up any existing data for this symbol, exchange, timeframe combination
+                            # for the same time period to avoid duplicates
+                            conn = get_db_connection()
+                            min_timestamp = df['timestamp'].min()
+                            max_timestamp = df['timestamp'].max()
+                            
+                            cursor = conn.cursor()
+                            
+                            # Use different parameter styles for PostgreSQL vs SQLite
+                            import os
+                            if 'DATABASE_URL' in os.environ:
+                                # PostgreSQL
+                                cursor.execute(
+                                    """
+                                    DELETE FROM ohlcv_data 
+                                    WHERE symbol = %s AND exchange = %s AND timeframe = %s 
+                                    AND timestamp BETWEEN %s AND %s
+                                    """,
+                                    (symbol, exchange_id, timeframe, min_timestamp, max_timestamp)
+                                )
+                            else:
+                                # SQLite
+                                cursor.execute(
+                                    """
+                                    DELETE FROM ohlcv_data 
+                                    WHERE symbol = ? AND exchange = ? AND timeframe = ? 
+                                    AND timestamp BETWEEN ? AND ?
+                                    """,
+                                    (symbol, exchange_id, timeframe, min_timestamp, max_timestamp)
+                                )
+                            conn.commit()
+                            conn.close()
+                            
+                            # Store the new data
+                            store_ohlcv_data(df)
+                            successful_updates += 1
+                        
+                        # Respect rate limits
+                        time.sleep(exchange.rateLimit / 1000)
+                    except Exception as e:
+                        logger.error(f"Error processing {timeframe} data for {symbol} from {exchange_id}: {str(e)}", exc_info=True)
+                        continue
+            
+            logger.info(f"Completed update from exchange: {exchange_id}, successful updates: {successful_updates}")
     except Exception as e:
         logger.error(f"Failed to update exchange data: {str(e)}", exc_info=True)
         raise
