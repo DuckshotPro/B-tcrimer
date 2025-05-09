@@ -135,14 +135,16 @@ def show():
                     WHERE source = 'news' AND date(analyzed_at) >= %s
                 """, (seven_days_ago,))
                 
-                avg_news_sentiment = cursor.fetchone()[0] or 0
+                result = cursor.fetchone()
+                avg_news_sentiment = result[0] if result and result[0] is not None else 0
                 
                 cursor.execute("""
                     SELECT AVG(score) FROM sentiment_data
                     WHERE source = 'social' AND date(analyzed_at) >= %s
                 """, (seven_days_ago,))
                 
-                avg_social_sentiment = cursor.fetchone()[0] or 0
+                result = cursor.fetchone()
+                avg_social_sentiment = result[0] if result and result[0] is not None else 0
                 
                 # Calculate overall sentiment
                 overall_sentiment = (avg_news_sentiment + avg_social_sentiment) / 2

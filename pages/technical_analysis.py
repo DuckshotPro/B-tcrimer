@@ -51,7 +51,8 @@ def show():
             WHERE symbol = %s
         """, (selected_symbol,))
         
-        latest_indicator_time = cursor.fetchone()[0]
+        result = cursor.fetchone()
+        latest_indicator_time = result[0] if result and result[0] is not None else None
         
         if latest_indicator_time:
             # If indicators exist, check how recent they are
@@ -369,9 +370,13 @@ def show():
         # Display recent indicator values (last 20 rows)
         display_df = indicators_df[display_columns].tail(20).copy()
         
-        # Format timestamp if it's a datetime
-        if pd.api.types.is_datetime64_any_dtype(display_df['timestamp']):
-            display_df['timestamp'] = display_df['timestamp'].dt.strftime('%Y-%m-%d')
+        # Format timestamp
+        # Handle different timestamp formats
+        if 'timestamp' in display_df.columns:
+            if pd.api.types.is_datetime64_any_dtype(display_df['timestamp']):
+                display_df['timestamp'] = display_df['timestamp'].dt.strftime('%Y-%m-%d')
+            elif isinstance(display_df['timestamp'].iloc[0], str):
+                display_df['timestamp'] = pd.to_datetime(display_df['timestamp']).dt.strftime('%Y-%m-%d')
         
         st.dataframe(display_df)
         
