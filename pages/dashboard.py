@@ -204,7 +204,7 @@ def show():
                 cursor.execute("""
                     SELECT timestamp, rsi_14, macd, macd_signal, trend
                     FROM technical_indicators
-                    WHERE symbol = $1
+                    WHERE symbol = %s
                     ORDER BY timestamp DESC
                     LIMIT 1
                 """, (symbol,))
