@@ -647,6 +647,12 @@ def get_recurring_checkbox():
     return st.checkbox("Recurring alert", 
                    value=default_recurring,
                    help="When enabled, this alert can trigger multiple times after cooldown periods")
+                   
+def get_recurring_setting():
+    """Get the recurring setting from config"""
+    config = configparser.ConfigParser()
+    config.read('config.ini')
+    return config.getboolean('ALERTS', 'RecurringAlerts', fallback=True)
 
 
 def check_all_alerts(email):
