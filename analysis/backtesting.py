@@ -366,33 +366,48 @@ def save_backtest_results(backtest):
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # Save backtest summary
-        cursor.execute(
-            """
-            INSERT INTO backtest_results 
-            (symbol, strategy, exchange, period_days, initial_capital, final_capital, 
-             total_return, annual_return, annual_volatility, sharpe_ratio, max_drawdown,
-             total_trades, win_rate, profit_factor, timestamp)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                backtest['symbol'],
-                backtest['strategy'],
-                backtest['exchange'],
-                backtest['period_days'],
-                backtest['metrics']['initial_capital'],
-                backtest['metrics']['final_capital'],
-                backtest['metrics']['total_return_pct'],
-                backtest['metrics']['annual_return_pct'],
-                backtest['metrics']['annual_volatility_pct'],
-                backtest['metrics']['sharpe_ratio'],
-                backtest['metrics']['max_drawdown_pct'],
-                backtest['metrics']['total_trades'],
-                backtest['metrics']['win_rate_pct'],
-                backtest['metrics']['profit_factor'],
-                datetime.datetime.now()
-            )
+        import os
+        # Parameters for both database types
+        params = (
+            backtest['symbol'],
+            backtest['strategy'],
+            backtest['exchange'],
+            backtest['period_days'],
+            backtest['metrics']['initial_capital'],
+            backtest['metrics']['final_capital'],
+            backtest['metrics']['total_return_pct'],
+            backtest['metrics']['annual_return_pct'],
+            backtest['metrics']['annual_volatility_pct'],
+            backtest['metrics']['sharpe_ratio'],
+            backtest['metrics']['max_drawdown_pct'],
+            backtest['metrics']['total_trades'],
+            backtest['metrics']['win_rate_pct'],
+            backtest['metrics']['profit_factor'],
+            datetime.datetime.now()
         )
+        
+        if 'DATABASE_URL' in os.environ:
+            # PostgreSQL
+            cursor.execute(
+                """
+                INSERT INTO backtest_results 
+                (symbol, strategy, exchange, period_days, initial_capital, final_capital, 
+                 total_return, annual_return, annual_volatility, sharpe_ratio, max_drawdown,
+                 total_trades, win_rate, profit_factor, timestamp)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """, params
+            )
+        else:
+            # SQLite
+            cursor.execute(
+                """
+                INSERT INTO backtest_results 
+                (symbol, strategy, exchange, period_days, initial_capital, final_capital, 
+                 total_return, annual_return, annual_volatility, sharpe_ratio, max_drawdown,
+                 total_trades, win_rate, profit_factor, timestamp)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, params
+            )
         
         # Get the backtest ID
         backtest_id = cursor.lastrowid
@@ -401,21 +416,41 @@ def save_backtest_results(backtest):
         trades = backtest['results'][backtest['results']['pnl'] != 0].copy()
         if not trades.empty:
             for _, trade in trades.iterrows():
-                cursor.execute(
-                    """
-                    INSERT INTO backtest_trades
-                    (backtest_id, entry_date, entry_price, exit_date, exit_price, pnl)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        backtest_id,
-                        trade['timestamp'] if trade['entry_price'] > 0 else None,
-                        trade['entry_price'] if not pd.isna(trade['entry_price']) else 0,
-                        trade['timestamp'] if trade['exit_price'] > 0 else None,
-                        trade['exit_price'] if not pd.isna(trade['exit_price']) else 0,
-                        trade['pnl']
+                import os
+                if 'DATABASE_URL' in os.environ:
+                    # PostgreSQL
+                    cursor.execute(
+                        """
+                        INSERT INTO backtest_trades
+                        (backtest_id, entry_date, entry_price, exit_date, exit_price, pnl)
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                        """,
+                        (
+                            backtest_id,
+                            trade['timestamp'] if trade['entry_price'] > 0 else None,
+                            trade['entry_price'] if not pd.isna(trade['entry_price']) else 0,
+                            trade['timestamp'] if trade['exit_price'] > 0 else None,
+                            trade['exit_price'] if not pd.isna(trade['exit_price']) else 0,
+                            trade['pnl']
+                        )
                     )
-                )
+                else:
+                    # SQLite
+                    cursor.execute(
+                        """
+                        INSERT INTO backtest_trades
+                        (backtest_id, entry_date, entry_price, exit_date, exit_price, pnl)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            backtest_id,
+                            trade['timestamp'] if trade['entry_price'] > 0 else None,
+                            trade['entry_price'] if not pd.isna(trade['entry_price']) else 0,
+                            trade['timestamp'] if trade['exit_price'] > 0 else None,
+                            trade['exit_price'] if not pd.isna(trade['exit_price']) else 0,
+                            trade['pnl']
+                        )
+                    )
         
         conn.commit()
         conn.close()
@@ -432,18 +467,35 @@ def get_recent_backtests(limit=10):
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        cursor.execute(
-            """
-            SELECT id, symbol, strategy, exchange, period_days, 
-                   initial_capital, final_capital, total_return, 
-                   annual_return, sharpe_ratio, total_trades, win_rate,
-                   timestamp
-            FROM backtest_results
-            ORDER BY timestamp DESC
-            LIMIT ?
-            """,
-            (limit,)
-        )
+        import os
+        if 'DATABASE_URL' in os.environ:
+            # PostgreSQL
+            cursor.execute(
+                """
+                SELECT id, symbol, strategy, exchange, period_days, 
+                       initial_capital, final_capital, total_return, 
+                       annual_return, sharpe_ratio, total_trades, win_rate,
+                       timestamp
+                FROM backtest_results
+                ORDER BY timestamp DESC
+                LIMIT %s
+                """,
+                (limit,)
+            )
+        else:
+            # SQLite
+            cursor.execute(
+                """
+                SELECT id, symbol, strategy, exchange, period_days, 
+                       initial_capital, final_capital, total_return, 
+                       annual_return, sharpe_ratio, total_trades, win_rate,
+                       timestamp
+                FROM backtest_results
+                ORDER BY timestamp DESC
+                LIMIT ?
+                """,
+                (limit,)
+            )
         
         results = cursor.fetchall()
         conn.close()
@@ -482,30 +534,59 @@ def get_backtest_details(backtest_id):
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # Get backtest summary
-        cursor.execute(
-            """
-            SELECT * FROM backtest_results
-            WHERE id = ?
-            """,
-            (backtest_id,)
-        )
-        
-        summary = cursor.fetchone()
-        if not summary:
-            conn.close()
-            return None
+        import os
+        if 'DATABASE_URL' in os.environ:
+            # PostgreSQL
+            # Get backtest summary
+            cursor.execute(
+                """
+                SELECT * FROM backtest_results
+                WHERE id = %s
+                """,
+                (backtest_id,)
+            )
             
-        # Get backtest trades
-        cursor.execute(
-            """
-            SELECT entry_date, entry_price, exit_date, exit_price, pnl
-            FROM backtest_trades
-            WHERE backtest_id = ?
-            ORDER BY entry_date
-            """,
-            (backtest_id,)
-        )
+            summary = cursor.fetchone()
+            if not summary:
+                conn.close()
+                return None
+                
+            # Get backtest trades
+            cursor.execute(
+                """
+                SELECT entry_date, entry_price, exit_date, exit_price, pnl
+                FROM backtest_trades
+                WHERE backtest_id = %s
+                ORDER BY entry_date
+                """,
+                (backtest_id,)
+            )
+        else:
+            # SQLite
+            # Get backtest summary
+            cursor.execute(
+                """
+                SELECT * FROM backtest_results
+                WHERE id = ?
+                """,
+                (backtest_id,)
+            )
+            
+            summary = cursor.fetchone()
+            if not summary:
+                conn.close()
+                return None
+                
+            # Get backtest trades
+            cursor.execute(
+                """
+                SELECT entry_date, entry_price, exit_date, exit_price, pnl
+                FROM backtest_trades
+                WHERE backtest_id = ?
+                ORDER BY entry_date
+                """,
+                (backtest_id,)
+            )
         
         trades = cursor.fetchall()
         conn.close()
