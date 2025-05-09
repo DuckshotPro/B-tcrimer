@@ -317,7 +317,13 @@ def run_backtest(symbol, strategy, exchange='binance', days=365, initial_capital
             ORDER BY timestamp
         """
         
-        data = pd.read_sql_query(query, conn, params=(symbol, exchange, threshold_date))
+        import os
+        if 'DATABASE_URL' in os.environ:
+            # PostgreSQL uses list or dict for params
+            data = pd.read_sql_query(query, conn, params=[symbol, exchange, threshold_date])
+        else:
+            # SQLite uses tuple for params
+            data = pd.read_sql_query(query, conn, params=(symbol, exchange, threshold_date))
         conn.close()
         
         if data.empty:

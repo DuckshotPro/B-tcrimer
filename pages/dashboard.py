@@ -336,7 +336,7 @@ def show():
             ORDER BY timestamp
         """
         
-        df = pd.read_sql_query(query, engine, params=[selected_symbol, threshold_date])
+        df = pd.read_sql_query(query, engine, params=(selected_symbol, threshold_date))
         
         if not df.empty:
             # Convert timestamp if it's a string
@@ -362,7 +362,7 @@ def show():
                 ORDER BY timestamp
             """
             
-            indicators = pd.read_sql_query(query, engine, params=[selected_symbol, threshold_date])
+            indicators = pd.read_sql_query(query, engine, params=(selected_symbol, threshold_date))
             
             if not indicators.empty:
                 # Convert timestamp if it's a string
