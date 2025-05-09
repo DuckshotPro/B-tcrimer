@@ -330,11 +330,11 @@ def show():
         query = """
             SELECT timestamp, open, high, low, close, volume
             FROM ohlcv_data
-            WHERE symbol = %s AND date(timestamp) >= %s
+            WHERE symbol = :symbol AND date(timestamp) >= :date
             ORDER BY timestamp
         """
         
-        df = pd.read_sql_query(query, engine, params=[selected_symbol, threshold_date])
+        df = pd.read_sql_query(query, engine, params={'symbol': selected_symbol, 'date': threshold_date})
         
         if not df.empty:
             # Convert timestamp if it's a string
@@ -356,11 +356,11 @@ def show():
             query = """
                 SELECT timestamp, sma_20, sma_50
                 FROM technical_indicators
-                WHERE symbol = %s AND date(timestamp) >= %s
+                WHERE symbol = :symbol AND date(timestamp) >= :date
                 ORDER BY timestamp
             """
             
-            indicators = pd.read_sql_query(query, engine, params=[selected_symbol, threshold_date])
+            indicators = pd.read_sql_query(query, engine, params={'symbol': selected_symbol, 'date': threshold_date})
             
             if not indicators.empty:
                 # Convert timestamp if it's a string
