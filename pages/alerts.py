@@ -170,7 +170,8 @@ def show_active_alerts():
     
     # Display alerts
     for alert in alerts:
-        alert_id, symbol, alert_type, condition, value, last_checked, last_triggered, notification_sent, created_at = alert
+        (alert_id, symbol, alert_type, condition, value, last_checked, last_triggered, 
+         notification_sent, created_at, trigger_count, daily_trigger_count, daily_count_reset, recurring) = alert
         
         # Format dates
         if isinstance(created_at, str):
@@ -181,6 +182,9 @@ def show_active_alerts():
         
         if last_triggered and isinstance(last_triggered, str):
             last_triggered = datetime.datetime.strptime(last_triggered, '%Y-%m-%d %H:%M:%S')
+            
+        if daily_count_reset and isinstance(daily_count_reset, str):
+            daily_count_reset = datetime.datetime.strptime(daily_count_reset, '%Y-%m-%d %H:%M:%S')
         
         # Alert status
         if notification_sent:
@@ -193,29 +197,105 @@ def show_active_alerts():
             status = "Pending"
             status_color = "orange"
         
-        # Create alert card
-        with st.expander(f"{symbol} - {alert_type.title()} {condition} {value}"):
-            st.write(f"**Type:** {alert_type.title()}")
-            st.write(f"**Condition:** {condition.title()} {value}")
-            st.write(f"**Created:** {created_at.strftime('%Y-%m-%d %H:%M')}")
+        # Format alert type for display
+        if alert_type == 'price':
+            display_type = 'Price'
+        elif alert_type.startswith('indicator_'):
+            indicator = alert_type.split('_', 1)[1]
+            display_type = f'Indicator: {indicator.upper() if indicator in ["rsi", "macd"] else indicator.title()}'
+        elif alert_type.startswith('sentiment_'):
+            source = alert_type.split('_', 1)[1]
+            display_type = f'Sentiment: {source.title()}'
+        else:
+            display_type = alert_type.title()
+        
+        # Create alert card with more information
+        with st.expander(f"{symbol} - {display_type} {condition} {value}"):
+            col1, col2 = st.columns(2)
             
-            if last_checked:
-                st.write(f"**Last Checked:** {last_checked.strftime('%Y-%m-%d %H:%M')}")
+            with col1:
+                st.write(f"**Type:** {display_type}")
+                st.write(f"**Condition:** {condition.title()} {value}")
+                st.write(f"**Created:** {created_at.strftime('%Y-%m-%d %H:%M')}")
+                
+                if last_checked:
+                    st.write(f"**Last Checked:** {last_checked.strftime('%Y-%m-%d %H:%M')}")
+                
+                if last_triggered:
+                    st.write(f"**Last Triggered:** {last_triggered.strftime('%Y-%m-%d %H:%M')}")
+                
+                st.markdown(f"**Status:** <span style='color: {status_color}'>{status}</span>", unsafe_allow_html=True)
             
-            if last_triggered:
-                st.write(f"**Last Triggered:** {last_triggered.strftime('%Y-%m-%d %H:%M')}")
+            with col2:
+                # Added new information fields
+                st.write(f"**Mode:** {'Recurring' if recurring else 'One-time'}")
+                st.write(f"**Total Triggers:** {trigger_count}")
+                st.write(f"**Daily Triggers:** {daily_trigger_count}")
+                
+                # Get config for alert triggers to show limits
+                config = configparser.ConfigParser()
+                config.read('config.ini')
+                cooldown_minutes = config.getint('ALERTS', 'CooldownMinutes', fallback=60)
+                max_triggers_per_day = config.getint('ALERTS', 'MaxTriggersPerDay', fallback=5)
+                
+                # Show cooldown status if alert was triggered
+                if last_triggered:
+                    cooldown_ends = last_triggered + datetime.timedelta(minutes=cooldown_minutes)
+                    now = datetime.datetime.now()
+                    if now < cooldown_ends:
+                        minutes_left = int((cooldown_ends - now).total_seconds() / 60)
+                        st.write(f"**Cooldown:** {minutes_left} min remaining")
+                    else:
+                        st.write("**Cooldown:** Ready")
+                
+                # Show daily limit status
+                st.write(f"**Daily Limit:** {daily_trigger_count}/{max_triggers_per_day}")
             
-            st.markdown(f"**Status:** <span style='color: {status_color}'>{status}</span>", unsafe_allow_html=True)
+            # Action buttons
+            col1, col2, col3 = st.columns(3)
             
-            # Delete button
-            if st.button(f"Delete Alert", key=f"delete_{alert_id}"):
-                conn = get_db_connection()
-                cursor = conn.cursor()
-                cursor.execute("DELETE FROM alerts WHERE id = ?", (alert_id,))
-                conn.commit()
-                conn.close()
-                st.success("Alert deleted successfully!")
-                st.rerun()
+            with col1:
+                # Delete button
+                if st.button(f"Delete Alert", key=f"delete_{alert_id}"):
+                    conn = get_db_connection()
+                    cursor = conn.cursor()
+                    cursor.execute("DELETE FROM alerts WHERE id = ?", (alert_id,))
+                    conn.commit()
+                    conn.close()
+                    st.success("Alert deleted successfully!")
+                    st.rerun()
+            
+            with col2:
+                # Reset button for triggered alerts
+                if notification_sent:
+                    if st.button(f"Reset Alert", key=f"reset_{alert_id}"):
+                        conn = get_db_connection()
+                        cursor = conn.cursor()
+                        cursor.execute(
+                            "UPDATE alerts SET triggered = 0, notification_sent = 0 WHERE id = ?", 
+                            (alert_id,)
+                        )
+                        conn.commit()
+                        conn.close()
+                        st.success("Alert reset successfully!")
+                        st.rerun()
+            
+            with col3:
+                # Toggle recurring mode
+                current_recurring = bool(recurring)
+                new_mode = "One-time" if current_recurring else "Recurring"
+                
+                if st.button(f"Make {new_mode}", key=f"toggle_{alert_id}"):
+                    conn = get_db_connection()
+                    cursor = conn.cursor()
+                    cursor.execute(
+                        "UPDATE alerts SET recurring = ? WHERE id = ?", 
+                        (0 if current_recurring else 1, alert_id)
+                    )
+                    conn.commit()
+                    conn.close()
+                    st.success(f"Alert changed to {new_mode} mode!")
+                    st.rerun()
 
 def show_price_alerts(email):
     """Configure price-based alerts"""
@@ -284,16 +364,21 @@ def show_price_alerts(email):
                     conn = get_db_connection()
                     cursor = conn.cursor()
                     
+                    # Get recurring setting
+                    recurring = True  # Default to recurring alerts
+                    
                     cursor.execute(
                         """
                         INSERT INTO alerts (
                             symbol, alert_type, condition, value, active,
-                            triggered, notification_sent, created_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                            triggered, notification_sent, created_at,
+                            trigger_count, daily_trigger_count, recurring
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """,
                         (
                             symbol, 'price', condition, price, 1,
-                            0, 0, datetime.datetime.now()
+                            0, 0, datetime.datetime.now(),
+                            0, 0, int(recurring)
                         )
                     )
                     
@@ -402,16 +487,21 @@ def show_indicator_alerts(email):
                     
                     alert_type = f"indicator_{indicator_key}"
                     
+                    # Get recurring setting
+                    recurring = True  # Default to recurring alerts
+                    
                     cursor.execute(
                         """
                         INSERT INTO alerts (
                             symbol, alert_type, condition, value, active,
-                            triggered, notification_sent, created_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                            triggered, notification_sent, created_at,
+                            trigger_count, daily_trigger_count, recurring
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """,
                         (
                             symbol, alert_type, condition, value, 1,
-                            0, 0, datetime.datetime.now()
+                            0, 0, datetime.datetime.now(),
+                            0, 0, int(recurring)
                         )
                     )
                     
@@ -484,16 +574,21 @@ def show_sentiment_alerts(email):
                     
                     alert_type = f"sentiment_{source}"
                     
+                    # Get recurring setting
+                    recurring = True  # Default to recurring alerts
+                    
                     cursor.execute(
                         """
                         INSERT INTO alerts (
                             symbol, alert_type, condition, value, active,
-                            triggered, notification_sent, created_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                            triggered, notification_sent, created_at,
+                            trigger_count, daily_trigger_count, recurring
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """,
                         (
                             symbol, alert_type, condition, value, 1,
-                            0, 0, datetime.datetime.now()
+                            0, 0, datetime.datetime.now(),
+                            0, 0, int(recurring)
                         )
                     )
                     
@@ -513,8 +608,10 @@ def check_all_alerts(email):
         conn = get_db_connection()
         cursor = conn.cursor()
         
+        # Get all active alerts - now all alerts are checked, 
+        # even if previously triggered, as we support recurring alerts
         cursor.execute("""
-            SELECT id, symbol, alert_type, condition, value, notification_sent
+            SELECT id, symbol, alert_type, condition, value
             FROM alerts
             WHERE active = TRUE
         """)
@@ -526,11 +623,7 @@ def check_all_alerts(email):
             return
         
         for alert in alerts:
-            alert_id, symbol, alert_type, condition, threshold, notification_sent = alert
-            
-            # Skip if already notified
-            if notification_sent:
-                continue
+            alert_id, symbol, alert_type, condition, threshold = alert
             
             # Check alert based on type
             if alert_type == 'price':
