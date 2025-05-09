@@ -4,10 +4,12 @@ import numpy as np
 import datetime
 import uuid
 import os
+import configparser
 
 from database.operations import get_db_connection
 from data_collection.exchange_data import get_latest_prices
 from utils.email_alerts import send_price_alert, send_indicator_alert, send_sentiment_alert
+from utils.sms_alerts import send_price_sms_alert, send_indicator_sms_alert, send_sentiment_sms_alert
 from utils.logging_config import get_logger
 
 logger = get_logger(__name__)
