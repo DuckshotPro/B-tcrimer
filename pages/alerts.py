@@ -24,22 +24,100 @@ def show():
             st.session_state.alert_email = ""
         
         st.sidebar.header("Alert Settings")
-        alert_email = st.sidebar.text_input("Email for Alerts", 
-                                            value=st.session_state.alert_email,
-                                            placeholder="Enter your email")
         
-        if alert_email != st.session_state.alert_email:
-            st.session_state.alert_email = alert_email
-        
-        # Check if email alerts are enabled in config
-        import configparser
+        # Get configuration
         config = configparser.ConfigParser()
         config.read('config.ini')
         
+        # Email settings
         email_enabled = config.getboolean('ALERTS', 'EmailEnabled')
+        st.sidebar.subheader("Email Notifications")
         
-        if not email_enabled:
+        if email_enabled:
+            alert_email = st.sidebar.text_input("Email for Alerts", 
+                                            value=st.session_state.alert_email,
+                                            placeholder="Enter your email")
+            
+            if alert_email != st.session_state.alert_email:
+                st.session_state.alert_email = alert_email
+        else:
             st.sidebar.warning("Email alerts are disabled in configuration.")
+        
+        # SMS settings
+        sms_enabled = config.getboolean('ALERTS', 'SMSEnabled', fallback=False)
+        
+        st.sidebar.subheader("SMS Notifications")
+        
+        if sms_enabled:
+            # Check if Twilio credentials are set
+            twilio_account_sid = os.environ.get('TWILIO_ACCOUNT_SID')
+            twilio_auth_token = os.environ.get('TWILIO_AUTH_TOKEN')
+            twilio_phone_number = os.environ.get('TWILIO_PHONE_NUMBER')
+            
+            if all([twilio_account_sid, twilio_auth_token, twilio_phone_number]):
+                # Get current owner phone from config
+                current_phone = config.get('ALERTS', 'OwnerPhoneNumber', fallback='')
+                
+                # Show phone number input
+                phone_number = st.sidebar.text_input(
+                    "Your Phone Number (for SMS alerts)",
+                    value=current_phone,
+                    placeholder="Enter in format: +1234567890"
+                )
+                
+                # Save phone number to config if changed
+                if phone_number != current_phone:
+                    if not phone_number or phone_number.startswith('+'):
+                        config.set('ALERTS', 'OwnerPhoneNumber', phone_number)
+                        with open('config.ini', 'w') as f:
+                            config.write(f)
+                        st.sidebar.success("Phone number saved!")
+                    else:
+                        st.sidebar.error("Phone number must start with + and country code (e.g., +1 for US)")
+            else:
+                st.sidebar.warning("Twilio credentials not set. SMS alerts will not work.")
+                st.sidebar.info("Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_PHONE_NUMBER in environment variables.")
+                
+                # Add button to request Twilio credentials
+                if 'request_twilio' not in st.session_state:
+                    st.session_state.request_twilio = False
+                
+                if st.sidebar.button("Set Up Twilio Credentials") or st.session_state.request_twilio:
+                    # Set flag to display credentials form
+                    st.session_state.request_twilio = True
+                    
+                    # Display a form to collect Twilio credentials
+                    st.sidebar.markdown("### Twilio Credentials")
+                    
+                    with st.sidebar.form("twilio_credentials_form"):
+                        st.write("Enter your Twilio credentials:")
+                        account_sid = st.text_input("Account SID", placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
+                        auth_token = st.text_input("Auth Token", placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", type="password")
+                        phone_number = st.text_input("Twilio Phone Number", placeholder="+12345678900")
+                        
+                        submitted = st.form_submit_button("Save Credentials")
+                        
+                        if submitted:
+                            if not account_sid or not auth_token or not phone_number:
+                                st.error("All fields are required.")
+                            else:
+                                try:
+                                    # Use environment variables
+                                    from ask_secrets import ask_secrets
+                                    
+                                    # This will prompt the user to provide the secrets
+                                    ask_secrets(
+                                        secret_keys=["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_PHONE_NUMBER"],
+                                        user_message="We need your Twilio credentials to send SMS alerts. Please provide your Twilio credentials to enable SMS notifications."
+                                    )
+                                    
+                                    st.success("Credentials request sent. Please provide the credentials when prompted.")
+                                    st.session_state.request_twilio = False
+                                except Exception as e:
+                                    st.error(f"Failed to save credentials: {str(e)}")
+                                    logger.error(f"Failed to save Twilio credentials: {str(e)}", exc_info=True)
+        else:
+            st.sidebar.info("SMS alerts are disabled. Enable in config.ini to receive text alerts.")
         
         # Create tabs for different alert types
         tabs = st.tabs(["Active Alerts", "Price Alerts", "Technical Indicator Alerts", "Sentiment Alerts"])
@@ -498,6 +576,11 @@ def check_price_alert(alert_id, symbol, condition, threshold, email):
             triggered = True
         
         if triggered:
+            # Get config for SMS alerts
+            config = configparser.ConfigParser()
+            config.read('config.ini')
+            sms_enabled = config.getboolean('ALERTS', 'SMSEnabled', fallback=False)
+            
             # Update alert
             cursor.execute(
                 """
@@ -507,7 +590,7 @@ def check_price_alert(alert_id, symbol, condition, threshold, email):
                 """,
                 (
                     datetime.datetime.now(), 
-                    1 if email else 0,
+                    1 if (email or sms_enabled) else 0,
                     alert_id
                 )
             )
@@ -520,6 +603,16 @@ def check_price_alert(alert_id, symbol, condition, threshold, email):
             # Send email notification if configured
             if email:
                 send_price_alert(email, symbol, current_price, condition, threshold)
+                
+            # Send SMS notification if enabled
+            if sms_enabled:
+                owner_phone = config.get('ALERTS', 'OwnerPhoneNumber', fallback='')
+                if owner_phone:
+                    # Send SMS notification to owner
+                    send_price_sms_alert(owner_phone, symbol, current_price, condition, threshold)
+                    logger.info(f"SMS alert sent to {owner_phone} for {symbol}")
+                else:
+                    logger.warning("SMS alerts enabled but owner phone number not configured")
         else:
             conn.close()
     
@@ -599,6 +692,11 @@ def check_indicator_alert(alert_id, symbol, indicator, condition, threshold, ema
             triggered = True
         
         if triggered:
+            # Get config for SMS alerts
+            config = configparser.ConfigParser()
+            config.read('config.ini')
+            sms_enabled = config.getboolean('ALERTS', 'SMSEnabled', fallback=False)
+            
             # Update alert
             cursor.execute(
                 """
@@ -608,7 +706,7 @@ def check_indicator_alert(alert_id, symbol, indicator, condition, threshold, ema
                 """,
                 (
                     datetime.datetime.now(), 
-                    1 if email else 0,
+                    1 if (email or sms_enabled) else 0,
                     alert_id
                 )
             )
@@ -618,11 +716,22 @@ def check_indicator_alert(alert_id, symbol, indicator, condition, threshold, ema
             
             logger.info(f"Indicator alert triggered for {symbol} {indicator} {condition} {threshold}")
             
+            # Format indicator name for display
+            indicator_name = indicator.upper() if indicator in ['macd', 'rsi'] else ' '.join(part.capitalize() for part in indicator.split('_'))
+            
             # Send email notification if configured
             if email:
-                # Format indicator name for display
-                indicator_name = indicator.upper() if indicator in ['macd', 'rsi'] else ' '.join(part.capitalize() for part in indicator.split('_'))
                 send_indicator_alert(email, symbol, indicator_name, current_value, condition, threshold)
+                
+            # Send SMS notification if enabled
+            if sms_enabled:
+                owner_phone = config.get('ALERTS', 'OwnerPhoneNumber', fallback='')
+                if owner_phone:
+                    # Send SMS notification to owner
+                    send_indicator_sms_alert(owner_phone, symbol, indicator_name, current_value, condition, threshold)
+                    logger.info(f"SMS alert sent to {owner_phone} for {symbol} indicator {indicator_name}")
+                else:
+                    logger.warning("SMS alerts enabled but owner phone number not configured")
         else:
             conn.close()
     
@@ -668,6 +777,11 @@ def check_sentiment_alert(alert_id, symbol, source, condition, threshold, email)
             triggered = True
         
         if triggered:
+            # Get config for SMS alerts
+            config = configparser.ConfigParser()
+            config.read('config.ini')
+            sms_enabled = config.getboolean('ALERTS', 'SMSEnabled', fallback=False)
+            
             # Update alert
             cursor.execute(
                 """
@@ -677,7 +791,7 @@ def check_sentiment_alert(alert_id, symbol, source, condition, threshold, email)
                 """,
                 (
                     datetime.datetime.now(), 
-                    1 if email else 0,
+                    1 if (email or sms_enabled) else 0,
                     alert_id
                 )
             )
@@ -690,6 +804,16 @@ def check_sentiment_alert(alert_id, symbol, source, condition, threshold, email)
             # Send email notification if configured
             if email:
                 send_sentiment_alert(email, symbol, current_value, source)
+                
+            # Send SMS notification if enabled
+            if sms_enabled:
+                owner_phone = config.get('ALERTS', 'OwnerPhoneNumber', fallback='')
+                if owner_phone:
+                    # Send SMS notification to owner
+                    send_sentiment_sms_alert(owner_phone, symbol, current_value, source)
+                    logger.info(f"SMS alert sent to {owner_phone} for {symbol} sentiment")
+                else:
+                    logger.warning("SMS alerts enabled but owner phone number not configured")
         else:
             conn.close()
     
