@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 import time
 
 from data_collection.exchange_data import get_latest_prices
-from database.operations import get_db_connection
+from database.operations import get_db_connection, get_sqlalchemy_engine
 from utils.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -325,7 +325,8 @@ def show():
         days = time_periods[selected_period]
         threshold_date = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
         
-        conn = get_db_connection()
+        # Use SQLAlchemy engine for pandas
+        engine = get_sqlalchemy_engine()
         query = """
             SELECT timestamp, open, high, low, close, volume
             FROM ohlcv_data
@@ -333,8 +334,7 @@ def show():
             ORDER BY timestamp
         """
         
-        df = pd.read_sql_query(query, conn, params=[selected_symbol, threshold_date])
-        conn.close()
+        df = pd.read_sql_query(query, engine, params=[selected_symbol, threshold_date])
         
         if not df.empty:
             # Convert timestamp if it's a string
