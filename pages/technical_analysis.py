@@ -71,7 +71,9 @@ def show():
                     LIMIT 180  -- Last 180 data points
                 """
                 
-                indicators_df = pd.read_sql_query(query, conn, params=[selected_symbol])
+                # For SQLAlchemy, use a dictionary for parameters
+                params = {"symbol": selected_symbol}
+                indicators_df = pd.read_sql_query(query.replace("%s", ":symbol"), conn, params=params)
                 # Sort by timestamp ascending
                 indicators_df.sort_values('timestamp', inplace=True)
         

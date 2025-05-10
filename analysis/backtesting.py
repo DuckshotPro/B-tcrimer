@@ -317,13 +317,19 @@ def run_backtest(symbol, strategy, exchange='binance', days=365, initial_capital
             ORDER BY timestamp
         """
         
-        import os
+        # Use proper named parameters for SQLAlchemy
+        params = {"symbol": symbol, "exchange": exchange, "date": threshold_date}
+        
+        # Convert placeholders to named parameters
         if 'DATABASE_URL' in os.environ:
-            # PostgreSQL uses list or dict for params
-            data = pd.read_sql_query(query, conn, params=[symbol, exchange, threshold_date])
+            # PostgreSQL (using %s placeholders)
+            named_query = query.replace("?", "%s")
+            named_query = named_query.replace("%s", ":symbol", 1).replace("%s", ":exchange", 1).replace("%s", ":date", 1)
         else:
-            # SQLite uses tuple for params
-            data = pd.read_sql_query(query, conn, params=(symbol, exchange, threshold_date))
+            # SQLite (using ? placeholders)
+            named_query = query.replace("?", ":symbol", 1).replace("?", ":exchange", 1).replace("?", ":date", 1)
+            
+        data = pd.read_sql_query(named_query, conn, params=params)
         conn.close()
         
         if data.empty:

@@ -337,12 +337,9 @@ def show():
         """
         
         import os
-        if 'DATABASE_URL' in os.environ:
-            # PostgreSQL
-            df = pd.read_sql_query(query, engine, params=[selected_symbol, threshold_date])
-        else:
-            # SQLite
-            df = pd.read_sql_query(query, engine, params=(selected_symbol, threshold_date))
+        # For SQLAlchemy, use a dictionary for parameters
+        params = {"symbol": selected_symbol, "date": threshold_date}
+        df = pd.read_sql_query(query.replace("%s", ":symbol").replace("%s", ":date"), engine, params=params)
         
         if not df.empty:
             # Convert timestamp if it's a string
@@ -368,12 +365,9 @@ def show():
                 ORDER BY timestamp
             """
             
-            if 'DATABASE_URL' in os.environ:
-                # PostgreSQL
-                indicators = pd.read_sql_query(query, engine, params=[selected_symbol, threshold_date])
-            else:
-                # SQLite
-                indicators = pd.read_sql_query(query, engine, params=(selected_symbol, threshold_date))
+            # For SQLAlchemy, use a dictionary for parameters
+            params = {"symbol": selected_symbol, "date": threshold_date}
+            indicators = pd.read_sql_query(query.replace("%s", ":symbol").replace("%s", ":date"), engine, params=params)
             
             if not indicators.empty:
                 # Convert timestamp if it's a string
