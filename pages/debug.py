@@ -1,3 +1,4 @@
+
 import streamlit as st
 import pandas as pd
 import os
@@ -8,100 +9,183 @@ from utils.logging_config import get_logger
 logger = get_logger(__name__)
 
 def show():
-    """Display a debug page for testing database connections"""
-    st.title("Debug Page")
+    """Display the debug page with system information and database stats"""
+    st.markdown("""
+    <h1 style="font-size: 2.5rem; font-weight: 700; margin-bottom: 1.5rem; 
+               background: linear-gradient(to right, #00B0F0, #00D1C4); 
+               -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+        System Debug Information
+    </h1>
+    """, unsafe_allow_html=True)
     
-    st.write("This page tests database connectivity and shows if queries are working.")
+    # System information
+    st.subheader("System Information")
     
-    # Display environment info
-    st.subheader("Environment Info")
-    if 'DATABASE_URL' in os.environ:
-        st.info("PostgreSQL database is configured")
-    else:
-        st.info("Using SQLite database")
+    # Create columns for system info
+    col1, col2 = st.columns(2)
     
-    # Connection test
-    st.subheader("Database Connection Test")
+    with col1:
+        st.info("Environment Variables")
+        env_vars = {key: value for key, value in os.environ.items() 
+                    if not key.startswith("AWS") and not "KEY" in key.upper() 
+                    and not "SECRET" in key.upper() and not "TOKEN" in key.upper()}
+        
+        st.dataframe(
+            pd.DataFrame(list(env_vars.items()), columns=["Variable", "Value"])
+        )
+    
+    with col2:
+        st.info("Database Information")
+        try:
+            engine = get_sqlalchemy_engine()
+            
+            # Get database metadata
+            with engine.connect() as connection:
+                # Get table counts
+                if 'DATABASE_URL' in os.environ:
+                    # PostgreSQL query
+                    result = connection.execute(text("""
+                        SELECT 
+                            tablename as table_name, 
+                            (SELECT COUNT(*) FROM information_schema.columns WHERE table_name=t.tablename) as column_count,
+                            n_live_tup as row_count
+                        FROM pg_stat_user_tables t
+                        ORDER BY n_live_tup DESC;
+                    """))
+                else:
+                    # SQLite query
+                    result = connection.execute(text("""
+                        SELECT 
+                            name as table_name,
+                            (SELECT COUNT(*) FROM pragma_table_info(name)) as column_count,
+                            (SELECT COUNT(*) FROM sqlite_master WHERE type='table') as row_count
+                        FROM sqlite_master
+                        WHERE type='table' AND name NOT LIKE 'sqlite_%'
+                    """))
+                
+                tables_info = [dict(row) for row in result]
+                
+            st.dataframe(pd.DataFrame(tables_info))
+        except Exception as e:
+            st.error(f"Error connecting to database: {str(e)}")
+    
+    # Database content preview
+    st.subheader("Database Content Preview")
+    
+    # Get list of tables
     try:
         conn = get_db_connection()
-        st.success("Database connection successful!")
+        cursor = conn.cursor()
+        
+        if 'DATABASE_URL' in os.environ:
+            # PostgreSQL query
+            cursor.execute("""
+                SELECT tablename 
+                FROM pg_catalog.pg_tables 
+                WHERE schemaname != 'pg_catalog' AND schemaname != 'information_schema'
+            """)
+        else:
+            # SQLite query
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
+            
+        tables = [row[0] for row in cursor.fetchall()]
+        
+        # Create dropdown to select table
+        selected_table = st.selectbox("Select a table to preview", tables)
+        
+        # Display table preview
+        if selected_table:
+            cursor.execute(f"SELECT * FROM {selected_table} LIMIT 100")
+            rows = cursor.fetchall()
+            
+            if rows:
+                # Get column names
+                if 'DATABASE_URL' in os.environ:
+                    # PostgreSQL column names
+                    column_names = [desc[0] for desc in cursor.description]
+                else:
+                    # SQLite column names
+                    column_names = [desc[0] for desc in cursor.description]
+                
+                # Convert to DataFrame
+                df = pd.DataFrame(rows, columns=column_names)
+                st.dataframe(df)
+            else:
+                st.info(f"Table '{selected_table}' is empty")
+        
         conn.close()
     except Exception as e:
-        st.error(f"Database connection failed: {str(e)}")
-        logger.error(f"Database connection failed: {str(e)}", exc_info=True)
+        st.error(f"Error previewing database content: {str(e)}")
+        logger.error(f"Error in debug page: {str(e)}", exc_info=True)
     
-    # SQLAlchemy connection test
-    st.subheader("SQLAlchemy Engine Test")
-    try:
-        engine = get_sqlalchemy_engine()
-        st.success("SQLAlchemy engine created successfully!")
-    except Exception as e:
-        st.error(f"SQLAlchemy engine creation failed: {str(e)}")
-        logger.error(f"SQLAlchemy engine creation failed: {str(e)}", exc_info=True)
+    # Application performance metrics
+    st.subheader("Application Performance")
     
-    # Simple query test
-    st.subheader("Simple Query Test")
-    try:
-        engine = get_sqlalchemy_engine()
+    # Create columns for performance data
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.info("Memory Usage")
         
-        # Create a test table if it doesn't exist
-        if 'DATABASE_URL' in os.environ:
-            # PostgreSQL
-            create_query = """
-            CREATE TABLE IF NOT EXISTS debug_test (
-                id SERIAL PRIMARY KEY,
-                name VARCHAR(100),
-                value INTEGER
-            )
-            """
-            with engine.connect() as connection:
-                connection.execute(text(create_query))
-                connection.commit()
+        try:
+            import psutil
+            process = psutil.Process(os.getpid())
+            memory_info = process.memory_info()
             
-            # Insert test data
-            insert_query = """
-            INSERT INTO debug_test (name, value) 
-            VALUES ('test1', 100), ('test2', 200)
-            ON CONFLICT (id) DO NOTHING
-            """
-            with engine.connect() as connection:
-                connection.execute(text(insert_query))
-                connection.commit()
+            memory_data = {
+                "Metric": ["RSS Memory", "VMS Memory", "Percent Memory"],
+                "Value": [
+                    f"{memory_info.rss / (1024 * 1024):.2f} MB",
+                    f"{memory_info.vms / (1024 * 1024):.2f} MB",
+                    f"{process.memory_percent():.2f}%"
+                ]
+            }
             
-            # Query test data
-            query = "SELECT * FROM debug_test"
-            df = pd.read_sql_query(query, engine)
+            st.dataframe(pd.DataFrame(memory_data))
+        except ImportError:
+            st.warning("psutil not installed. Cannot show memory usage.")
+    
+    with col2:
+        st.info("Config Settings")
+        
+        # Show application configuration
+        try:
+            import configparser
+            config = configparser.ConfigParser()
+            config.read('config.ini')
             
+            config_data = []
+            for section in config.sections():
+                for key, value in config[section].items():
+                    # Skip sensitive data
+                    if "key" in key.lower() or "token" in key.lower() or "secret" in key.lower() or "password" in key.lower():
+                        value = "********"
+                    
+                    config_data.append({"Section": section, "Key": key, "Value": value})
+            
+            st.dataframe(pd.DataFrame(config_data))
+        except Exception as e:
+            st.error(f"Error reading configuration: {str(e)}")
+    
+    # Logs preview
+    st.subheader("Recent Logs")
+    
+    try:
+        log_file = "logs/crypto_analysis.log"
+        if os.path.exists(log_file):
+            with open(log_file, "r") as f:
+                # Get last 100 lines
+                lines = f.readlines()[-100:]
+                
+                # Display logs with filter option
+                log_filter = st.text_input("Filter logs", "")
+                
+                if log_filter:
+                    filtered_lines = [line for line in lines if log_filter.lower() in line.lower()]
+                    st.code("".join(filtered_lines))
+                else:
+                    st.code("".join(lines))
         else:
-            # SQLite
-            create_query = """
-            CREATE TABLE IF NOT EXISTS debug_test (
-                id INTEGER PRIMARY KEY,
-                name TEXT,
-                value INTEGER
-            )
-            """
-            with engine.connect() as connection:
-                connection.execute(text(create_query))
-                connection.commit()
-            
-            # Insert test data
-            insert_query = """
-            INSERT OR IGNORE INTO debug_test (id, name, value) 
-            VALUES (1, 'test1', 100), (2, 'test2', 200)
-            """
-            with engine.connect() as connection:
-                connection.execute(text(insert_query))
-                connection.commit()
-            
-            # Query test data
-            query = "SELECT * FROM debug_test"
-            df = pd.read_sql_query(query, engine)
-        
-        # Display results
-        st.subheader("Query Results:")
-        st.dataframe(df)
-        
+            st.warning(f"Log file not found: {log_file}")
     except Exception as e:
-        st.error(f"Query test failed: {str(e)}")
-        logger.error(f"Query test failed: {str(e)}", exc_info=True)
+        st.error(f"Error reading log file: {str(e)}")

@@ -1,3 +1,4 @@
+
 import os
 import streamlit as st
 import configparser
@@ -58,9 +59,6 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
-
-# Debug text to test rendering
-st.write("DEBUG: App is loading...this should be visible on all pages")
 
 # Basic styling 
 st.markdown("""
