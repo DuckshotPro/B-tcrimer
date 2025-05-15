@@ -8,7 +8,7 @@ from database.operations import initialize_database, perform_database_maintenanc
 from data_collection.exchange_data import update_exchange_data
 from data_collection.news_data import update_news_data
 from data_collection.social_data import update_social_data
-from pages import dashboard, data_sources, technical_analysis, sentiment, alerts, backtesting, logs
+from pages import dashboard, data_sources, technical_analysis, sentiment, alerts, backtesting, logs, debug
 
 # Setup logging
 setup_logging()
@@ -116,11 +116,12 @@ page_icons = {
     "Sentiment Analysis": "🔍",
     "Alerts Configuration": "⚠️",
     "Backtesting": "⏱️",
-    "System Logs": "📝"
+    "System Logs": "📝",
+    "Debug Page": "🔧"
 }
 
 pages = ["Dashboard", "Data Sources", "Technical Analysis", "Sentiment Analysis", 
-         "Alerts Configuration", "Backtesting", "System Logs"]
+         "Alerts Configuration", "Backtesting", "System Logs", "Debug Page"]
 
 # Create navigation buttons
 page = st.sidebar.radio(
@@ -163,6 +164,8 @@ elif page == "Backtesting":
     backtesting.show()
 elif page == "System Logs":
     logs.show()
+elif page == "Debug Page":
+    debug.show()
 
 # Footer
 st.sidebar.markdown("---")

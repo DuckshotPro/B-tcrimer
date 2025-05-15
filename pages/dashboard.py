@@ -338,13 +338,14 @@ def show():
         
         import os
         if 'DATABASE_URL' in os.environ:
-            # PostgreSQL - Use psycopg2 format with %s placeholders
-            df = pd.read_sql_query(query, engine, params=[selected_symbol, threshold_date])
-        else:
-            # SQLite - Use named parameters
+            # PostgreSQL - Use psycopg2 format with %s placeholders and params as a dict
             params = {"symbol": selected_symbol, "date": threshold_date}
+            pg_query = query.replace("%s", "%(symbol)s", 1).replace("%s", "%(date)s", 1)
+            df = pd.read_sql_query(pg_query, engine, params=params)
+        else:
+            # SQLite - Use question marks with params as a tuple
             modified_query = query.replace("%s", "?")  # Convert to SQLite placeholders
-            df = pd.read_sql_query(modified_query, engine, params=[selected_symbol, threshold_date])
+            df = pd.read_sql_query(modified_query, engine, params=(selected_symbol, threshold_date))
         
         if not df.empty:
             # Convert timestamp if it's a string
@@ -371,12 +372,14 @@ def show():
             """
             
             if 'DATABASE_URL' in os.environ:
-                # PostgreSQL - Use psycopg2 format with %s placeholders
-                indicators = pd.read_sql_query(query, engine, params=[selected_symbol, threshold_date])
+                # PostgreSQL - Use psycopg2 format with %s placeholders and params as a dict
+                params = {"symbol": selected_symbol, "date": threshold_date}
+                pg_query = query.replace("%s", "%(symbol)s", 1).replace("%s", "%(date)s", 1)
+                indicators = pd.read_sql_query(pg_query, engine, params=params)
             else:
-                # SQLite - Use question mark placeholders
+                # SQLite - Use question marks with params as a tuple
                 modified_query = query.replace("%s", "?")
-                indicators = pd.read_sql_query(modified_query, engine, params=[selected_symbol, threshold_date])
+                indicators = pd.read_sql_query(modified_query, engine, params=(selected_symbol, threshold_date))
             
             if not indicators.empty:
                 # Convert timestamp if it's a string
