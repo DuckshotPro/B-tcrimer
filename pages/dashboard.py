@@ -337,9 +337,14 @@ def show():
         """
         
         import os
-        # For SQLAlchemy, use a dictionary for parameters
-        params = {"symbol": selected_symbol, "date": threshold_date}
-        df = pd.read_sql_query(query.replace("%s", ":symbol").replace("%s", ":date"), engine, params=params)
+        if 'DATABASE_URL' in os.environ:
+            # PostgreSQL - Use psycopg2 format with %s placeholders
+            df = pd.read_sql_query(query, engine, params=(selected_symbol, threshold_date))
+        else:
+            # SQLite - Use named parameters
+            params = {"symbol": selected_symbol, "date": threshold_date}
+            modified_query = query.replace("%s", "?")  # Convert to SQLite placeholders
+            df = pd.read_sql_query(modified_query, engine, params=(selected_symbol, threshold_date))
         
         if not df.empty:
             # Convert timestamp if it's a string
@@ -365,9 +370,13 @@ def show():
                 ORDER BY timestamp
             """
             
-            # For SQLAlchemy, use a dictionary for parameters
-            params = {"symbol": selected_symbol, "date": threshold_date}
-            indicators = pd.read_sql_query(query.replace("%s", ":symbol").replace("%s", ":date"), engine, params=params)
+            if 'DATABASE_URL' in os.environ:
+                # PostgreSQL - Use psycopg2 format with %s placeholders
+                indicators = pd.read_sql_query(query, engine, params=(selected_symbol, threshold_date))
+            else:
+                # SQLite - Use question mark placeholders
+                modified_query = query.replace("%s", "?")
+                indicators = pd.read_sql_query(modified_query, engine, params=(selected_symbol, threshold_date))
             
             if not indicators.empty:
                 # Convert timestamp if it's a string
