@@ -90,9 +90,14 @@ if 'initialized' not in st.session_state:
     st.session_state.last_data_refresh = datetime.datetime.min
     st.session_state.config = config
     
-    # Initialize database
-    initialize_database()
-    logger.info("Database initialized")
+    # Try to initialize database, but don't fail if it doesn't work
+    try:
+        initialize_database()
+        logger.info("Database initialized")
+        st.session_state.database_available = True
+    except Exception as e:
+        logger.warning(f"Database initialization failed, continuing without database: {str(e)}")
+        st.session_state.database_available = False
 
 # Sidebar header with logo
 st.sidebar.markdown("""

@@ -17,27 +17,31 @@ def get_db_path():
     return config['DEFAULT']['DatabasePath']
 
 def get_db_connection():
-    """Get a SQLite database connection"""
+    """Get a database connection"""
     try:
-        # Check if we should use PostgreSQL or SQLite
+        # Try PostgreSQL first if configured, then fall back to SQLite
         if 'DATABASE_URL' in os.environ:
-            # We have a PostgreSQL connection string
-            logger.info("Using PostgreSQL database")
-            import psycopg2
-            from psycopg2.extras import DictCursor
-            
-            conn = psycopg2.connect(
-                os.environ.get('DATABASE_URL'),
-                cursor_factory=DictCursor
-            )
-            return conn
-        else:
-            # Use SQLite as fallback
-            logger.info("Using SQLite database")
-            db_path = get_db_path()
-            conn = sqlite3.connect(db_path)
-            conn.row_factory = sqlite3.Row
-            return conn
+            try:
+                # We have a PostgreSQL connection string
+                logger.info("Attempting PostgreSQL database connection")
+                import psycopg2
+                from psycopg2.extras import DictCursor
+                
+                conn = psycopg2.connect(
+                    os.environ.get('DATABASE_URL'),
+                    cursor_factory=DictCursor
+                )
+                logger.info("Using PostgreSQL database")
+                return conn
+            except Exception as pg_error:
+                logger.warning(f"PostgreSQL connection failed, falling back to SQLite: {str(pg_error)}")
+        
+        # Use SQLite as fallback
+        logger.info("Using SQLite database")
+        db_path = get_db_path()
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        return conn
     except Exception as e:
         logger.error(f"Failed to connect to database: {str(e)}", exc_info=True)
         raise
@@ -45,24 +49,31 @@ def get_db_connection():
 def get_sqlalchemy_engine():
     """Get a SQLAlchemy engine for the database"""
     try:
-        # Check if we should use PostgreSQL or SQLite
+        # Try PostgreSQL first if configured, then fall back to SQLite
         if 'DATABASE_URL' in os.environ:
-            # We have a PostgreSQL connection string
-            logger.info("Using PostgreSQL SQLAlchemy engine")
-            engine = create_engine(
-                os.environ.get('DATABASE_URL')
-            )
-            return engine
-        else:
-            # Use SQLite as fallback
-            logger.info("Using SQLite SQLAlchemy engine")
-            db_path = get_db_path()
-            engine = create_engine(
-                f"sqlite:///{db_path}", 
-                connect_args={"check_same_thread": False},
-                poolclass=StaticPool
-            )
-            return engine
+            try:
+                # We have a PostgreSQL connection string
+                logger.info("Attempting PostgreSQL SQLAlchemy engine")
+                engine = create_engine(
+                    os.environ.get('DATABASE_URL')
+                )
+                # Test the connection
+                with engine.connect() as conn:
+                    pass
+                logger.info("Using PostgreSQL SQLAlchemy engine")
+                return engine
+            except Exception as pg_error:
+                logger.warning(f"PostgreSQL SQLAlchemy engine failed, falling back to SQLite: {str(pg_error)}")
+        
+        # Use SQLite as fallback
+        logger.info("Using SQLite SQLAlchemy engine")
+        db_path = get_db_path()
+        engine = create_engine(
+            f"sqlite:///{db_path}", 
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool
+        )
+        return engine
     except Exception as e:
         logger.error(f"Failed to create SQLAlchemy engine: {str(e)}", exc_info=True)
         raise
