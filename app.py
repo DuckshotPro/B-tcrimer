@@ -8,7 +8,7 @@ from database.operations import initialize_database, perform_database_maintenanc
 from data_collection.exchange_data import update_exchange_data
 from data_collection.news_data import update_news_data
 from data_collection.social_data import update_social_data
-from pages import dashboard, data_sources, technical_analysis, sentiment, alerts, backtesting, logs, debug
+from pages import dashboard, data_sources, technical_analysis, sentiment, alerts, backtesting, logs, debug, domino_cascade
 
 # Setup logging
 setup_logging()
@@ -114,6 +114,7 @@ st.sidebar.markdown("""
 page_icons = {
     "Dashboard": "📊",
     "💰 Profit Center": "💰",
+    "🎯 Domino Cascade": "🎯",
     "Technical Analysis": "📈",
     "Sentiment Analysis": "🔍",
     "Alerts Configuration": "⚠️",
@@ -122,7 +123,7 @@ page_icons = {
     "Debug Page": "🔧"
 }
 
-pages = ["Dashboard", "💰 Profit Center", "Technical Analysis", "Sentiment Analysis", 
+pages = ["Dashboard", "💰 Profit Center", "🎯 Domino Cascade", "Technical Analysis", "Sentiment Analysis", 
          "Alerts Configuration", "Backtesting", "System Logs", "Debug Page"]
 
 # Create navigation buttons
@@ -156,6 +157,8 @@ if page == "Dashboard":
     dashboard.show()
 elif page == "💰 Profit Center":
     profit_tracker.show()
+elif page == "🎯 Domino Cascade":
+    domino_cascade.show()
 elif page == "Technical Analysis":
     technical_analysis.show()
 elif page == "Sentiment Analysis":

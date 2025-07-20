@@ -68,3 +68,115 @@ class AdvancedRiskManager:
         """Calculate total portfolio risk exposure"""
         total_risk = sum(pos.get('risk_percentage', 0) for pos in positions)
         return min(total_risk, 100)  # Cap at 100%
+import pandas as pd
+import numpy as np
+from utils.logging_config import get_logger
+
+logger = get_logger(__name__)
+
+class AdvancedRiskManager:
+    def __init__(self):
+        self.max_position_size = 0.25  # Maximum 25% of capital per position
+        self.max_portfolio_risk = 0.15  # Maximum 15% portfolio risk
+        self.stop_loss_threshold = 0.05  # 5% stop loss
+        
+    def calculate_position_size(self, capital, confidence, risk_level, expected_return):
+        """Calculate optimal position size based on risk parameters"""
+        try:
+            # Base position size using Kelly Criterion approximation
+            win_prob = confidence
+            avg_win = abs(expected_return) if expected_return > 0 else 5.0
+            avg_loss = avg_win * 0.5  # Assume 2:1 reward/risk ratio
+            
+            # Kelly fraction
+            kelly_fraction = (win_prob * avg_win - (1 - win_prob) * avg_loss) / avg_win
+            kelly_fraction = max(0, min(kelly_fraction, 0.25))  # Cap at 25%
+            
+            # Risk level adjustment
+            risk_multipliers = {
+                'LOW': 1.2,
+                'MEDIUM': 1.0,
+                'HIGH': 0.7
+            }
+            
+            risk_multiplier = risk_multipliers.get(risk_level, 1.0)
+            
+            # Final position size
+            position_size = capital * kelly_fraction * risk_multiplier
+            
+            # Apply maximum position limit
+            max_position = capital * self.max_position_size
+            position_size = min(position_size, max_position)
+            
+            return position_size
+            
+        except Exception as e:
+            logger.error(f"Position size calculation failed: {str(e)}", exc_info=True)
+            return capital * 0.1  # Default to 10%
+    
+    def assess_portfolio_risk(self, positions):
+        """Assess overall portfolio risk"""
+        try:
+            if not positions:
+                return {'risk_level': 'LOW', 'risk_score': 0}
+            
+            total_exposure = sum(pos['position_size'] for pos in positions)
+            position_count = len(positions)
+            
+            # Calculate risk score
+            risk_score = 0
+            
+            # Concentration risk
+            if position_count == 1:
+                risk_score += 0.3
+            elif position_count <= 3:
+                risk_score += 0.2
+            elif position_count <= 5:
+                risk_score += 0.1
+            
+            # Exposure risk
+            if total_exposure > 0.8:  # More than 80% deployed
+                risk_score += 0.3
+            elif total_exposure > 0.6:
+                risk_score += 0.2
+            elif total_exposure > 0.4:
+                risk_score += 0.1
+            
+            # Individual position risk
+            high_risk_positions = sum(1 for pos in positions if pos.get('risk_level') == 'HIGH')
+            risk_score += (high_risk_positions / position_count) * 0.2
+            
+            # Determine risk level
+            if risk_score >= 0.6:
+                risk_level = 'HIGH'
+            elif risk_score >= 0.3:
+                risk_level = 'MEDIUM'
+            else:
+                risk_level = 'LOW'
+            
+            return {
+                'risk_level': risk_level,
+                'risk_score': risk_score,
+                'total_exposure': total_exposure,
+                'position_count': position_count
+            }
+            
+        except Exception as e:
+            logger.error(f"Portfolio risk assessment failed: {str(e)}", exc_info=True)
+            return {'risk_level': 'HIGH', 'risk_score': 1.0}
+    
+    def should_stop_trading(self, current_capital, initial_capital, consecutive_losses=0):
+        """Determine if trading should be stopped"""
+        # Stop if capital drops below 50% of initial
+        if current_capital < initial_capital * 0.5:
+            return True, "Capital dropped below 50% of initial amount"
+        
+        # Stop after 5 consecutive losses
+        if consecutive_losses >= 5:
+            return True, "Too many consecutive losses"
+        
+        # Stop if capital is too low for meaningful trading
+        if current_capital < 25:
+            return True, "Insufficient capital for trading"
+        
+        return False, None
