@@ -1,4 +1,3 @@
-
 import os
 import streamlit as st
 import configparser
@@ -25,22 +24,22 @@ def refresh_data():
         logger.info("Starting data refresh")
         current_time = datetime.datetime.now()
         refresh_interval = int(config['DEFAULT']['DataRefreshInterval'])
-        
+
         # Check if refresh is needed
         if (current_time - st.session_state.last_data_refresh).total_seconds() >= refresh_interval:
             with st.spinner('Refreshing cryptocurrency data...'):
                 if config.getboolean('EXCHANGES', 'Enabled'):
                     update_exchange_data(config)
-                
+
                 if config.getboolean('NEWS', 'Enabled'):
                     update_news_data(config)
-                
+
                 if config.getboolean('SOCIAL', 'Enabled'):
                     update_social_data(config)
-                
+
                 # Perform database maintenance
                 perform_database_maintenance()
-                
+
                 st.session_state.last_data_refresh = current_time
                 logger.info("Data refresh completed")
                 st.success("Data refresh completed successfully!")
@@ -71,7 +70,7 @@ st.markdown("""
         padding: 0.5rem 1rem;
         font-weight: 500;
     }
-    
+
     /* Modern card styling */
     div[data-testid="stVerticalBlock"] > div:has(div.stDataFrame) {
         background-color: rgba(255, 255, 255, 0.05);
@@ -89,7 +88,7 @@ if 'initialized' not in st.session_state:
     st.session_state.initialized = True
     st.session_state.last_data_refresh = datetime.datetime.min
     st.session_state.config = config
-    
+
     # Try to initialize database, but don't fail if it doesn't work
     try:
         initialize_database()
@@ -114,7 +113,7 @@ st.sidebar.markdown("""
 # Navigation
 page_icons = {
     "Dashboard": "📊",
-    "Data Sources": "📡",
+    "💰 Profit Center": "💰",
     "Technical Analysis": "📈",
     "Sentiment Analysis": "🔍",
     "Alerts Configuration": "⚠️",
@@ -123,7 +122,7 @@ page_icons = {
     "Debug Page": "🔧"
 }
 
-pages = ["Dashboard", "Data Sources", "Technical Analysis", "Sentiment Analysis", 
+pages = ["Dashboard", "💰 Profit Center", "Technical Analysis", "Sentiment Analysis", 
          "Alerts Configuration", "Backtesting", "System Logs", "Debug Page"]
 
 # Create navigation buttons
@@ -155,8 +154,8 @@ if st.session_state.last_data_refresh != datetime.datetime.min:
 # Display the selected page
 if page == "Dashboard":
     dashboard.show()
-elif page == "Data Sources":
-    data_sources.show()
+elif page == "💰 Profit Center":
+    profit_tracker.show()
 elif page == "Technical Analysis":
     technical_analysis.show()
 elif page == "Sentiment Analysis":
