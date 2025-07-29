@@ -464,6 +464,10 @@ def get_sentiment_trends(days_back=30, interval='day'):
         logger.error(f"Failed to get sentiment trends: {str(e)}", exc_info=True)
         return {'news': [], 'social': []}
 
+def get_symbol_sentiment(symbol, days_back=30):
+    """Get sentiment specifically for a cryptocurrency by filtering for mentions in text"""
+    return get_cryptocurrency_sentiment(symbol, days_back)
+
 def get_cryptocurrency_sentiment(symbol, days_back=30):
     """Get sentiment specifically for a cryptocurrency by filtering for mentions in text"""
     try:

@@ -60,8 +60,10 @@ def show():
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT DISTINCT symbol FROM ohlcv_data 
-            ORDER BY (SELECT MAX(timestamp) FROM ohlcv_data t2 WHERE t2.symbol = ohlcv_data.symbol) DESC 
+            SELECT symbol, MAX(timestamp) as last_update 
+            FROM ohlcv_data 
+            GROUP BY symbol 
+            ORDER BY last_update DESC 
             LIMIT 10
         """)
         symbols = [row[0] for row in cursor.fetchall()]
