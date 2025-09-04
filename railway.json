@@ -1,0 +1,40 @@
+{
+  "$schema": "https://railway.app/railway.schema.json",
+  "build": {
+    "builder": "NIXPACKS" // Use Nixpacks for automatic build detection (Python, Node.js, etc.)
+  },
+  "deploy": {
+    "startCommand": "python -m uvicorn main:app --host 0.0.0.0 --port $PORT", // Command to start the application
+    "healthcheckPath": "/health", // Endpoint for health checks
+    "healthcheckTimeout": 30 // Timeout for health checks in seconds
+  },
+  "environment": {
+    "PYTHON_VERSION": "3.9" // Specify Python version for the build environment
+  },
+  "services": [
+    {
+      "name": "b-tcrimer-api", // Name of your API service
+      "repo": "https://github.com/DuckshotPro/B-tcrimer", // Link to your GitHub repository
+      "buildCommand": "pip install -r requirements.txt", // Command to install dependencies
+      "startCommand": "python -m uvicorn main:app --host 0.0.0.0 --port $PORT", // Command to start the API
+      "healthcheckPath": "/health", // Health check endpoint for the API
+      "healthcheckTimeout": 30, // Timeout for API health checks
+      "minReplicas": 1, // Minimum number of instances for auto-scaling
+      "maxReplicas": 3, // Maximum number of instances for auto-scaling
+      "releaseCommand": "alembic upgrade head", // Command to run database migrations before deployment
+      "environment": {
+        "DATABASE_URL": "${{DATABASE_URL}}", // Injected by Railway from the linked PostgreSQL service
+        "API_KEY": "${{API_KEY}}" // Your application's API key (set in Railway variables)
+      }
+    },
+    {
+      "name": "b-tcrimer-db", // Name of your database service
+      "image": "postgres:14", // Use PostgreSQL version 14
+      "environment": {
+        "POSTGRES_USER": "${{POSTGRES_USER}}", // PostgreSQL username (set in Railway variables)
+        "POSTGRES_PASSWORD": "${{POSTGRES_PASSWORD}}", // PostgreSQL password (set in Railway variables)
+        "POSTGRES_DB": "${{POSTGRES_DB}}" // PostgreSQL database name (set in Railway variables)
+      }
+    }
+  ]
+}

@@ -4,3 +4,5 @@ SQLAlchemy
 python-dotenv
 passlib[bcrypt]
 stripe
+alembic
+psycopg2-binary

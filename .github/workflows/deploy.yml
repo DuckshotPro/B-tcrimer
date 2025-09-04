@@ -1,0 +1,28 @@
+# This GitHub Actions workflow automates the deployment of your application to Railway.
+
+name: Deploy to Railway
+
+on:
+  push:
+    branches:
+      - main # This workflow runs when changes are pushed to the 'main' branch.
+
+env:
+  RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }} # Access the Railway API token from GitHub Secrets.
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest # The job will run on a fresh Ubuntu virtual machine.
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3 # Checks out your repository code.
+
+      - name: Install Railway CLI
+        run: npm i -g @railway/cli # Installs the Railway CLI globally on the runner.
+
+      - name: Deploy to Railway
+        # Deploys the application to Railway.
+        # '--service b-tcrimer-api' specifies the service to deploy (as defined in railway.json).
+        # '--environment production' specifies the target environment on Railway.
+        run: railway up --service b-tcrimer-api --environment production

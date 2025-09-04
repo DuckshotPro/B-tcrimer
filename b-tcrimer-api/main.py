@@ -91,3 +91,7 @@ async def stripe_webhook(request: Request):
     if "error" in result:
         raise HTTPException(status_code=result["status_code"], detail=result["error"])
     return result
+
+@app.get("/health")
+async def health_check():
+    return {"status": "ok"}

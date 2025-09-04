@@ -1,0 +1,7 @@
+# This Procfile tells Railway how to run your web application.
+# The 'web' process type is the default for web applications.
+# It uses uvicorn to serve the FastAPI application.
+# 'main:app' refers to the 'app' object in 'main.py'.
+# '--host 0.0.0.0' makes the application accessible from outside the container.
+# '--port $PORT' uses the port provided by Railway.
+web: uvicorn main:app --host 0.0.0.0 --port $PORT
