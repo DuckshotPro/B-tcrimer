@@ -15,6 +15,7 @@ class User(Base):
     username = Column(String, unique=True, index=True)
     hashed_password = Column(String)
     is_paid_user = Column(Boolean, default=False)
+    lead_score = Column(Integer, default=0)
 
 class APIKey(Base):
     __tablename__ = "api_keys"

@@ -1,8 +1,9 @@
 fastapi
-uvicorn
-SQLAlchemy
+sqlalchemy
 python-dotenv
-passlib[bcrypt]
+passlib
+bcrypt
+requests
 stripe
-alembic
-psycopg2-binary
+sendgrid
+pandas

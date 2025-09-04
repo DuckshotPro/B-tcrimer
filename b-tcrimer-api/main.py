@@ -42,13 +42,19 @@ async def create_test_user(username: str, password: str, is_paid_user: bool = Fa
     db.commit()
     db.refresh(api_key)
 
+    # Send a welcome email
+    send_welcome_email(to_email=username, username=username)
+
     return {"message": "Test user and API key created", "username": username, "api_key": api_key_str}
 
 @app.get("/signals/{symbol}")
-async def get_trading_signals(symbol: str, api_key: APIKey = Depends(get_api_key), request: Request = Depends(rate_limit)):
+async def get_trading_signals(symbol: str, api_key: APIKey = Depends(get_api_key), request: Request = Depends(rate_limit), db: Session = Depends(get_db)):
     # The rate_limit dependency will raise HTTPException if rate limit is exceeded
     # The get_api_key dependency will raise HTTPException if API key is invalid
     
+    # Update lead score for this activity
+    update_lead_score(db, user_id=api_key.user_id, points=1)
+
     # Call the signals logic from signals.py
     signals_data = get_signals(symbol)
     return signals_data
@@ -91,6 +97,11 @@ async def stripe_webhook(request: Request):
     if "error" in result:
         raise HTTPException(status_code=result["status_code"], detail=result["error"])
     return result
+
+@app.get("/health")
+async def health_check():
+    return {"status": "ok"}
+n result
 
 @app.get("/health")
 async def health_check():

@@ -124,7 +124,7 @@ page_icons = {
 }
 
 pages = ["Dashboard", "💰 Profit Center", "🎯 Domino Cascade", "Technical Analysis", "Sentiment Analysis", 
-         "Alerts Configuration", "Backtesting", "System Logs", "Debug Page"]
+         "Alerts Configuration", "Backtesting", "System Logs", "Debug Page", "Performance Dashboard"]
 
 # Create navigation buttons
 page = st.sidebar.radio(
@@ -179,5 +179,7 @@ st.sidebar.markdown("""
     <p>Cryptocurrency Analysis Platform</p>
     <p>Version 1.0.0</p>
     <p>© 2025</p>
+</div>
+""", unsafe_allow_html=True)� 2025</p>
 </div>
 """, unsafe_allow_html=True)
