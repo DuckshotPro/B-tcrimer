@@ -12,8 +12,57 @@ from utils.logging_config import get_logger
 
 logger = get_logger(__name__)
 
+def show_contextual_help():
+    """Display contextual help and tips for the dashboard"""
+    st.markdown("""
+    <div style="position: fixed; top: 70px; right: 20px; z-index: 9999; 
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                color: white; padding: 1.5rem; border-radius: 15px; 
+                max-width: 320px; box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+                font-family: 'Arial', sans-serif;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h4 style="margin: 0; font-size: 1.1rem;">💡 Dashboard Guide</h4>
+            <span onclick="document.querySelector('[data-testid=\\'stSidebar\\'] button').click()" 
+                  style="cursor: pointer; font-size: 1.2rem; opacity: 0.8;">✕</span>
+        </div>
+        
+        <div style="margin-bottom: 1rem;">
+            <p style="margin: 0 0 0.8rem 0; font-size: 0.9rem; line-height: 1.4;">
+                <strong>📊 Portfolio Metrics:</strong> Track your performance at the top. 
+                Green = profits, Red = losses.
+            </p>
+            
+            <p style="margin: 0 0 0.8rem 0; font-size: 0.9rem; line-height: 1.4;">
+                <strong>📈 Live Charts:</strong> Real-time price data from major exchanges. 
+                Click coins to see detailed analysis.
+            </p>
+            
+            <p style="margin: 0 0 0.8rem 0; font-size: 0.9rem; line-height: 1.4;">
+                <strong>🔍 Market Sentiment:</strong> AI-powered analysis of news and social media 
+                to gauge market mood.
+            </p>
+            
+            <p style="margin: 0; font-size: 0.9rem; line-height: 1.4;">
+                <strong>⚡ Quick Actions:</strong> Use sidebar buttons to refresh data, 
+                clear cache, or access other analysis tools.
+            </p>
+        </div>
+        
+        <div style="background: rgba(255,255,255,0.1); border-radius: 8px; padding: 1rem; margin-top: 1rem;">
+            <p style="margin: 0; font-size: 0.85rem; opacity: 0.9;">
+                💡 <strong>Pro Tip:</strong> For best results, enable data sources in the 
+                'Technical Analysis' tab and set up alerts for your favorite cryptocurrencies!
+            </p>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
 def show():
     """Display the main dashboard with profit maximization features"""
+    # Show contextual help tour if enabled
+    if st.session_state.get('show_tour', False):
+        show_contextual_help()
+    
     st.markdown("""
     <h1 style="font-size: 2.5rem; font-weight: 700; margin-bottom: 1.5rem; 
                background: linear-gradient(to right, #00B0F0, #00D1C4); 
@@ -35,19 +84,20 @@ def show():
     """, unsafe_allow_html=True)
 
     # Add profit summary at the top
+    st.subheader("📊 Portfolio Overview")
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
-        st.metric("Portfolio Value", "$125,430", "+$8,430 (+7.2%)")
+        st.metric("Portfolio Value", "$125,430", "+$8,430 (+7.2%)", help="Total value of your cryptocurrency holdings across all exchanges")
 
     with col2:
-        st.metric("Daily P&L", "+$1,250", "+2.1%")
+        st.metric("Daily P&L", "+$1,250", "+2.1%", help="Profit/Loss for today. Green indicates gains, red indicates losses")
 
     with col3:
-        st.metric("Win Rate", "78%", "+5%")
+        st.metric("Win Rate", "78%", "+5%", help="Percentage of profitable trades based on your trading signals")
 
     with col4:
-        st.metric("Active Signals", "12", "+3")
+        st.metric("Active Signals", "12", "+3", help="Number of active buy/sell signals from technical analysis")
 
     # Profit optimization section
     st.header("🎯 Profit Optimization Center")

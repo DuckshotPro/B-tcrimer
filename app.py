@@ -8,7 +8,7 @@ from database.operations import initialize_database, perform_database_maintenanc
 from data_collection.exchange_data import update_exchange_data
 from data_collection.news_data import update_news_data
 from data_collection.social_data import update_social_data
-from pages import dashboard, data_sources, technical_analysis, sentiment, alerts, backtesting, logs, debug, domino_cascade
+from pages import dashboard, data_sources, technical_analysis, sentiment, alerts, backtesting, logs, debug, domino_cascade, onboarding
 
 # Setup logging
 setup_logging()
@@ -88,6 +88,15 @@ if 'initialized' not in st.session_state:
     st.session_state.initialized = True
     st.session_state.last_data_refresh = datetime.datetime.min
     st.session_state.config = config
+    
+    # Onboarding state
+    st.session_state.show_onboarding = not st.session_state.get('onboarding_completed', False)
+    st.session_state.user_preferences = st.session_state.get('user_preferences', {
+        'experience_level': 'beginner',
+        'primary_interest': 'investing', 
+        'notification_preferences': 'essential',
+        'theme': 'dark'
+    })
 
     # Try to initialize database, but don't fail if it doesn't work
     try:
@@ -125,6 +134,27 @@ page_icons = {
 
 pages = ["Dashboard", "💰 Profit Center", "🎯 Domino Cascade", "Technical Analysis", "Sentiment Analysis", 
          "Alerts Configuration", "Backtesting", "System Logs", "Debug Page", "Performance Dashboard"]
+
+# Check if onboarding should be shown
+if st.session_state.get('show_onboarding', True) and not st.session_state.get('onboarding_completed', False):
+    onboarding.show()
+    st.stop()
+
+# Add help toggle and onboarding reset
+help_col1, help_col2 = st.sidebar.columns([1, 1])
+with help_col1:
+    if st.button("❓ Help", use_container_width=True):
+        st.session_state.show_tour = not st.session_state.get('show_tour', False)
+        st.rerun()
+
+with help_col2:
+    if st.button("🔄 Setup", use_container_width=True, help="Re-run initial setup"):
+        st.session_state.show_onboarding = True
+        st.session_state.onboarding_completed = False
+        st.session_state.onboarding_step = 1
+        st.rerun()
+
+st.sidebar.markdown("---")
 
 # Create navigation buttons
 page = st.sidebar.radio(
@@ -180,6 +210,6 @@ st.sidebar.markdown("""
     <p>Version 1.0.0</p>
     <p>© 2025</p>
 </div>
-""", unsafe_allow_html=True)� 2025</p>
+""", unsafe_allow_html=True)� 2025</p>
 </div>
 """, unsafe_allow_html=True)
