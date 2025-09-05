@@ -5,11 +5,14 @@ import datetime
 import time
 from utils.logging_config import setup_logging, get_logger
 from utils.themes import theme_manager, apply_custom_css
+from utils.auth import require_authentication, auth_manager
+from utils.error_handler import error_handler, safe_execute
 from database.operations import initialize_database, perform_database_maintenance
+from components.status_indicator import show_system_status
 from data_collection.exchange_data import update_exchange_data
 from data_collection.news_data import update_news_data
 from data_collection.social_data import update_social_data
-from pages import dashboard, data_sources, technical_analysis, sentiment, alerts, backtesting, logs, debug, domino_cascade, onboarding
+from pages import dashboard, data_sources, technical_analysis, sentiment, alerts, backtesting, logs, debug, domino_cascade, onboarding, admin
 
 # Setup logging
 setup_logging()
@@ -70,6 +73,9 @@ current_theme = st.session_state.get('current_theme', 'dark')
 theme_manager.apply_theme(current_theme)
 apply_custom_css()
 
+# Authentication check (will show login if not authenticated)
+require_authentication()
+
 # Initialize session state
 if 'initialized' not in st.session_state:
     logger.info("Initializing application session")
@@ -110,11 +116,37 @@ st.sidebar.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
+# User info and logout
+if current_user:
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### 👤 Account")
+    
+    st.sidebar.markdown(f"""
+    <div style="background: var(--bg-secondary); padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+        <div style="color: var(--text-primary); font-weight: 600; margin-bottom: 0.25rem;">
+            {current_user['username']}
+        </div>
+        <div style="color: var(--text-secondary); font-size: 0.875rem; margin-bottom: 0.25rem;">
+            {current_user['email']}
+        </div>
+        <div style="color: var(--success-color); font-size: 0.75rem; font-weight: 500;">
+            Role: {current_user['role'].title()}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    if st.sidebar.button("🚪 Logout", use_container_width=True):
+        auth_manager.logout()
+        st.rerun()
+
 # Theme selector
 st.sidebar.markdown("### ⚙️ Settings")
 theme_manager.create_theme_selector()
 
-# Navigation
+# Get current user for navigation
+current_user = auth_manager.get_current_user()
+
+# Navigation with role-based access
 page_icons = {
     "Dashboard": "📊",
     "💰 Profit Center": "💰",
@@ -124,11 +156,17 @@ page_icons = {
     "Alerts Configuration": "⚠️",
     "Backtesting": "⏱️",
     "System Logs": "📝",
-    "Debug Page": "🔧"
+    "Debug Page": "🔧",
+    "Admin Panel": "🛠️"
 }
 
+# Base pages for all users
 pages = ["Dashboard", "💰 Profit Center", "🎯 Domino Cascade", "Technical Analysis", "Sentiment Analysis", 
          "Alerts Configuration", "Backtesting", "System Logs", "Debug Page", "Performance Dashboard"]
+
+# Add admin page for admin users
+if current_user and current_user.get('role') in ['admin', 'superadmin']:
+    pages.append("Admin Panel")
 
 # Check if onboarding should be shown
 if st.session_state.get('show_onboarding', True) and not st.session_state.get('onboarding_completed', False):
@@ -164,7 +202,11 @@ refresh_col1, refresh_col2 = st.sidebar.columns([1, 1])
 
 with refresh_col1:
     if st.button("🔄 Refresh Data", use_container_width=True):
-        refresh_data()
+        try:
+            refresh_data()
+        except Exception as e:
+            error_handler.log_error(e)
+            error_handler.display_user_friendly_error(e)
 
 with refresh_col2:
     if st.button("🧹 Clean Cache", use_container_width=True):
@@ -176,6 +218,12 @@ with refresh_col2:
 # Add last refresh time display
 if st.session_state.last_data_refresh != datetime.datetime.min:
     st.sidebar.info(f"Last data refresh: {st.session_state.last_data_refresh.strftime('%Y-%m-%d %H:%M:%S')}")
+
+# Show system status indicator
+show_system_status()
+
+# Store current page for error tracking
+st.session_state.current_page = page
 
 # Display the selected page
 if page == "Dashboard":
@@ -196,6 +244,8 @@ elif page == "System Logs":
     logs.show()
 elif page == "Debug Page":
     debug.show()
+elif page == "Admin Panel":
+    admin.show()
 
 # Footer
 st.sidebar.markdown("---")
