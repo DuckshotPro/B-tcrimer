@@ -9,6 +9,11 @@ import time
 from data_collection.exchange_data import get_latest_prices
 from database.operations import get_db_connection, get_sqlalchemy_engine
 from utils.logging_config import get_logger
+from components.financial_cards import (
+    create_portfolio_card, create_trading_signal_card, 
+    create_market_overview_card, create_price_chart,
+    create_performance_summary, create_loading_card
+)
 
 logger = get_logger(__name__)
 
@@ -64,10 +69,8 @@ def show():
         show_contextual_help()
     
     st.markdown("""
-    <h1 style="font-size: 2.5rem; font-weight: 700; margin-bottom: 1.5rem; 
-               background: linear-gradient(to right, #00B0F0, #00D1C4); 
-               -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
-        Cryptocurrency Analysis Dashboard
+    <h1 class="financial-title">
+        📈 Professional Crypto Dashboard
     </h1>
     """, unsafe_allow_html=True)
 
@@ -83,24 +86,132 @@ def show():
     </div>
     """, unsafe_allow_html=True)
 
-    # Add profit summary at the top
-    st.subheader("📊 Portfolio Overview")
+    # Enhanced portfolio overview with professional cards
+    st.markdown("## 📊 Portfolio Performance")
+    
     col1, col2, col3, col4 = st.columns(4)
-
+    
     with col1:
-        st.metric("Portfolio Value", "$125,430", "+$8,430 (+7.2%)", help="Total value of your cryptocurrency holdings across all exchanges")
-
+        create_portfolio_card(
+            title="Portfolio Value",
+            value="$125,430", 
+            change="+$8,430",
+            change_percent=7.2,
+            icon="💼",
+            help_text="Total value across all exchanges"
+        )
+    
     with col2:
-        st.metric("Daily P&L", "+$1,250", "+2.1%", help="Profit/Loss for today. Green indicates gains, red indicates losses")
-
+        create_portfolio_card(
+            title="Daily P&L", 
+            value="+$1,250",
+            change="Today",
+            change_percent=2.1,
+            icon="📈",
+            help_text="Today's profit/loss"
+        )
+    
     with col3:
-        st.metric("Win Rate", "78%", "+5%", help="Percentage of profitable trades based on your trading signals")
-
+        create_portfolio_card(
+            title="Win Rate",
+            value="78%",
+            change="+5%",
+            change_percent=5.0,
+            icon="🎯",
+            help_text="Percentage of profitable trades"
+        )
+    
     with col4:
-        st.metric("Active Signals", "12", "+3", help="Number of active buy/sell signals from technical analysis")
+        create_portfolio_card(
+            title="Active Signals",
+            value="12",
+            change="+3",
+            change_percent=33.3,
+            icon="⚡",
+            help_text="Current trading opportunities"
+        )
 
-    # Profit optimization section
-    st.header("🎯 Profit Optimization Center")
+    # Market overview and trading signals
+    st.markdown("---")
+    
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        st.markdown("## 🌍 Market Overview")
+        # Market overview with sample data
+        market_data = {
+            'total_market_cap': 2.3e12,  # $2.3T
+            'market_change_24h': 2.4,
+            'bitcoin_dominance': 42.1,
+            'active_cryptocurrencies': 12847
+        }
+        create_market_overview_card(market_data)
+        
+        # Sample price chart
+        st.markdown("### 📈 Bitcoin Price Action")
+        
+        # Generate sample price data
+        import numpy as np
+        dates = pd.date_range(start='2024-01-01', end='2024-01-07', freq='1H')
+        prices = 45000 + np.cumsum(np.random.randn(len(dates)) * 100)
+        volumes = np.random.randint(1000, 10000, len(dates))
+        
+        fig = create_price_chart(
+            symbol="BTC/USD",
+            prices=prices.tolist(),
+            timestamps=dates.strftime('%Y-%m-%d %H:%M').tolist(),
+            volume=volumes.tolist(),
+            height=400
+        )
+        st.plotly_chart(fig, use_container_width=True)
+    
+    with col2:
+        st.markdown("## ⚡ Active Signals")
+        
+        # Sample trading signals
+        signals = [
+            {
+                'symbol': 'BTC/USD',
+                'signal': 'BUY',
+                'confidence': 0.85,
+                'price': 45234.56,
+                'target': 47500.00,
+                'stop_loss': 43000.00
+            },
+            {
+                'symbol': 'ETH/USD', 
+                'signal': 'SELL',
+                'confidence': 0.72,
+                'price': 2845.32,
+                'target': 2650.00,
+                'stop_loss': 2950.00
+            },
+            {
+                'symbol': 'ADA/USD',
+                'signal': 'HOLD',
+                'confidence': 0.65,
+                'price': 0.4521,
+                'target': None,
+                'stop_loss': None
+            }
+        ]
+        
+        for signal in signals:
+            create_trading_signal_card(**signal)
+    
+    # Performance summary
+    st.markdown("---")
+    st.markdown("## 📊 Detailed Performance Analytics")
+    
+    performance_data = {
+        'total_value': 125430.50,
+        'total_pnl': 8430.25,
+        'total_pnl_percent': 7.2,
+        'daily_pnl': 1250.75,
+        'win_rate': 0.78,
+        'sharpe_ratio': 1.42
+    }
+    create_performance_summary(performance_data)
 
     # ML Predictions section
     with st.expander("🧠 AI Price Predictions", expanded=True):

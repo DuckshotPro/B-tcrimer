@@ -4,6 +4,7 @@ import configparser
 import datetime
 import time
 from utils.logging_config import setup_logging, get_logger
+from utils.themes import theme_manager, apply_custom_css
 from database.operations import initialize_database, perform_database_maintenance
 from data_collection.exchange_data import update_exchange_data
 from data_collection.news_data import update_news_data
@@ -53,34 +54,21 @@ def refresh_data():
 
 # Set page config
 st.set_page_config(
-    page_title="Crypto Analysis Platform",
+    page_title="B-TCRimer | Professional Crypto Analysis",
     page_icon="📈",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
+    menu_items={
+        'Get Help': 'https://github.com/DuckshotPro/B-tcrimer',
+        'Report a bug': 'https://github.com/DuckshotPro/B-tcrimer/issues',
+        'About': "# B-TCRimer\n### Professional Cryptocurrency Analysis Platform\n\nPowered by AI collaboration between Claude Code and Gemini AI."
+    }
 )
 
-# Basic styling 
-st.markdown("""
-<style>
-    .stButton > button {
-        background: linear-gradient(to right, #00B0F0, #00D1C4);
-        color: white;
-        border: none;
-        border-radius: 8px;
-        padding: 0.5rem 1rem;
-        font-weight: 500;
-    }
-
-    /* Modern card styling */
-    div[data-testid="stVerticalBlock"] > div:has(div.stDataFrame) {
-        background-color: rgba(255, 255, 255, 0.05);
-        border-radius: 10px;
-        padding: 1rem;
-        margin-bottom: 1rem;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-    }
-</style>
-""", unsafe_allow_html=True)
+# Apply professional theming system
+current_theme = st.session_state.get('current_theme', 'dark')
+theme_manager.apply_theme(current_theme)
+apply_custom_css()
 
 # Initialize session state
 if 'initialized' not in st.session_state:
@@ -110,14 +98,21 @@ if 'initialized' not in st.session_state:
 # Sidebar header with logo
 st.sidebar.markdown("""
 <div style="text-align: center; margin-bottom: 20px;">
-    <div style="font-size: 2rem; font-weight: 700; color: #00B0F0; margin-bottom: 5px;">
-        Crypto Analysis
+    <div style="font-size: 2rem; font-weight: 700; 
+                background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+                -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+                margin-bottom: 5px;">
+        B-TCRimer
     </div>
-    <div style="font-size: 0.9rem; opacity: 0.8; margin-bottom: 15px;">
-        Your Advanced Trading Companion
+    <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 15px;">
+        Professional Crypto Analysis
     </div>
 </div>
 """, unsafe_allow_html=True)
+
+# Theme selector
+st.sidebar.markdown("### ⚙️ Settings")
+theme_manager.create_theme_selector()
 
 # Navigation
 page_icons = {
