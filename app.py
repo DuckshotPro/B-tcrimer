@@ -7,6 +7,8 @@ from utils.logging_config import setup_logging, get_logger
 from utils.themes import theme_manager, apply_custom_css
 from utils.auth import require_authentication, auth_manager
 from utils.error_handler import error_handler, safe_execute
+from utils.cache_manager import cache_manager, preload_critical_data
+from utils.performance_monitor import performance_monitor_instance, track_page_load
 from database.operations import initialize_database, perform_database_maintenance
 from components.status_indicator import show_system_status
 from data_collection.exchange_data import update_exchange_data
@@ -97,6 +99,10 @@ if 'initialized' not in st.session_state:
         initialize_database()
         logger.info("Database initialized")
         st.session_state.database_available = True
+        
+        # Preload critical data for performance
+        preload_critical_data()
+        
     except Exception as e:
         logger.warning(f"Database initialization failed, continuing without database: {str(e)}")
         st.session_state.database_available = False
@@ -225,27 +231,40 @@ show_system_status()
 # Store current page for error tracking
 st.session_state.current_page = page
 
-# Display the selected page
-if page == "Dashboard":
-    dashboard.show()
-elif page == "💰 Profit Center":
-    profit_tracker.show()
-elif page == "🎯 Domino Cascade":
-    domino_cascade.show()
-elif page == "Technical Analysis":
-    technical_analysis.show()
-elif page == "Sentiment Analysis":
-    sentiment.show()
-elif page == "Alerts Configuration":
-    alerts.show()
-elif page == "Backtesting":
-    backtesting.show()
-elif page == "System Logs":
-    logs.show()
-elif page == "Debug Page":
-    debug.show()
-elif page == "Admin Panel":
-    admin.show()
+# Display the selected page with performance tracking
+with track_page_load(page):
+    try:
+        if page == "Dashboard":
+            dashboard.show()
+        elif page == "💰 Profit Center":
+            profit_tracker.show()
+        elif page == "🎯 Domino Cascade":
+            domino_cascade.show()
+        elif page == "Technical Analysis":
+            technical_analysis.show()
+        elif page == "Sentiment Analysis":
+            sentiment.show()
+        elif page == "Alerts Configuration":
+            alerts.show()
+        elif page == "Backtesting":
+            backtesting.show()
+        elif page == "System Logs":
+            logs.show()
+        elif page == "Debug Page":
+            debug.show()
+        elif page == "Admin Panel":
+            admin.show()
+            
+        # Track user activity
+        if current_user:
+            performance_monitor_instance.track_user_session(
+                str(current_user.get('id', 'anonymous')),
+                page
+            )
+            
+    except Exception as e:
+        error_handler.log_error(e)
+        error_handler.display_user_friendly_error(e)
 
 # Footer
 st.sidebar.markdown("---")

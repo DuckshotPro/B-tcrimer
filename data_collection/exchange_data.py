@@ -4,6 +4,8 @@ import time
 import datetime
 import sqlite3
 from utils.logging_config import get_logger
+from utils.cache_manager import cache_data_collection, cache_manager
+from utils.performance_monitor import performance_monitor
 from database.operations import get_db_connection
 
 logger = get_logger(__name__)
@@ -20,6 +22,8 @@ def get_exchange_instance(exchange_id):
         logger.error(f"Failed to initialize exchange {exchange_id}: {str(e)}", exc_info=True)
         return None
 
+@cache_data_collection(ttl=300)  # Cache for 5 minutes
+@performance_monitor()
 def get_top_cryptocurrencies(exchange, limit=100):
     """Get top cryptocurrencies by market cap"""
     try:

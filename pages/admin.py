@@ -12,6 +12,9 @@ from typing import Dict, List, Any
 
 from utils.auth import auth_manager, require_authentication
 from utils.error_handler import error_handler, create_system_health_dashboard
+from utils.cache_manager import show_cache_dashboard
+from utils.db_optimizer import show_database_performance_dashboard
+from utils.performance_monitor import show_performance_dashboard
 from utils.logging_config import get_logger
 from database.operations import get_db_connection
 
@@ -40,11 +43,14 @@ def show():
     """, unsafe_allow_html=True)
     
     # Admin navigation tabs
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
         "📊 Dashboard", 
         "👥 User Management", 
         "🏥 System Health", 
         "📝 Error Logs", 
+        "⚡ Performance",
+        "🚀 Cache Management",
+        "🗄️ Database",
         "⚙️ Configuration"
     ])
     
@@ -61,6 +67,15 @@ def show():
         show_error_logs()
     
     with tab5:
+        show_performance_dashboard()
+    
+    with tab6:
+        show_cache_dashboard()
+    
+    with tab7:
+        show_database_performance_dashboard()
+    
+    with tab8:
         show_configuration_panel()
 
 def show_admin_dashboard():
