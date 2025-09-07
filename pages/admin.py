@@ -14,9 +14,10 @@ from utils.auth import auth_manager, require_authentication
 from utils.error_handler import error_handler, create_system_health_dashboard
 from utils.cache_manager import show_cache_dashboard
 from utils.db_optimizer import show_database_performance_dashboard
-from utils.performance_monitor import show_performance_dashboard
+from utils.performance_monitor import show_performance_monitor
 from utils.logging_config import get_logger
 from database.operations import get_db_connection
+from pages.testing import show as show_testing_interface
 
 logger = get_logger(__name__)
 
@@ -43,7 +44,7 @@ def show():
     """, unsafe_allow_html=True)
     
     # Admin navigation tabs
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
         "📊 Dashboard", 
         "👥 User Management", 
         "🏥 System Health", 
@@ -51,6 +52,7 @@ def show():
         "⚡ Performance",
         "🚀 Cache Management",
         "🗄️ Database",
+        "🧪 Testing",
         "⚙️ Configuration"
     ])
     
@@ -76,6 +78,9 @@ def show():
         show_database_performance_dashboard()
     
     with tab8:
+        show_testing_panel()
+    
+    with tab9:
         show_configuration_panel()
 
 def show_admin_dashboard():
@@ -599,3 +604,18 @@ def save_configuration(config: Dict[str, Any]):
 def save_alert_configuration(config: Dict[str, Any]):
     """Save alert configuration"""
     logger.info(f"Alert configuration saved: {config}")
+
+def show_testing_panel():
+    """Testing interface integration"""
+    st.markdown("## 🧪 System Testing & Quality Assurance")
+    
+    st.markdown("""
+    <div style="background: var(--bg-secondary); padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+        <p style="margin: 0; color: var(--text-secondary);">
+            Comprehensive testing suite for B-TCRimer platform validation and quality assurance.
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Embed the testing interface
+    show_testing_interface()

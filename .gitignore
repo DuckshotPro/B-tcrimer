@@ -180,3 +180,4 @@ yarn-error.log*
 # Screenshots and attachments
 attached_assets/
 screenshots/
+.vercel
