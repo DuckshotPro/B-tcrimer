@@ -35,6 +35,13 @@
         "POSTGRES_PASSWORD": "${{POSTGRES_PASSWORD}}", // PostgreSQL password (set in Railway variables)
         "POSTGRES_DB": "${{POSTGRES_DB}}" // PostgreSQL database name (set in Railway variables)
       }
+    },
+    {
+      "name": "b-tcrimer-streamlit",
+      "buildCommand": "pip install -r requirements.txt",
+      "startCommand": "streamlit run app.py --server.port $PORT --server.address 0.0.0.0",
+      "healthcheckPath": "/",
+      "healthcheckTimeout": 300
     }
   ]
 }

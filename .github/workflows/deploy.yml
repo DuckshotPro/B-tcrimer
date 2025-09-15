@@ -21,8 +21,8 @@ jobs:
       - name: Install Railway CLI
         run: npm i -g @railway/cli # Installs the Railway CLI globally on the runner.
 
-      - name: Deploy to Railway
-        # Deploys the application to Railway.
-        # '--service b-tcrimer-api' specifies the service to deploy (as defined in railway.json).
-        # '--environment production' specifies the target environment on Railway.
+      - name: Deploy API to Railway
         run: railway up --service b-tcrimer-api --environment production
+
+      - name: Deploy Streamlit to Railway
+        run: railway up --service b-tcrimer-streamlit --environment production
