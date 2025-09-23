@@ -276,6 +276,4 @@ st.sidebar.markdown("""
     <p>Version 1.0.0</p>
     <p>© 2025</p>
 </div>
-""", unsafe_allow_html=True)� 2025</p>
-</div>
 """, unsafe_allow_html=True)
