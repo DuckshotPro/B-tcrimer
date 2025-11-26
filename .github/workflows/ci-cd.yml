@@ -1,0 +1,45 @@
+name: CI/CD Pipeline for crypt-ai-lytics.com-B-tcrimer
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: pip install -r requirements.txt
+
+    - name: Configure SSH for DP1 Deployment
+      uses: webfactory/ssh-agent@v0.9.0
+      with:
+        ssh-private-key: ${{ secrets.DP1_SSH_PRIVATE_KEY }}
+
+    - name: Add DP1 to known_hosts
+      run: |
+        mkdir -p ~/.ssh
+        ssh-keyscan -H 74.208.227.161 >> ~/.ssh/known_hosts
+        chmod 600 ~/.ssh/known_hosts
+
+    - name: Build and Deploy Application on DP1
+      run: |
+        echo "Building and deploying crypt-ai-lytics.com-B-tcrimer on DP1..."
+        ssh cira@74.208.227.161 "cd /home/cira/crypt-ai-lytics.com-B-tcrimer && \
+          podman build -t b-tcrimer:latest -f Dockerfile . && \
+          podman stop b-tcrimer || true && \
+          podman rm b-tcrimer || true && \
+          podman run -d --name b-tcrimer -p 80:8501 b-tcrimer:latest"
