@@ -1,0 +1,76 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy-production:
+    name: Deploy to Production (crypt-ai-lytics.com)
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Configure SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DP1_SSH_PRIVATE_KEY }}
+
+      - name: Add DP1 to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H 74.208.227.161 >> ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Deploy to Production
+        run: |
+          echo "🚀 Deploying to crypt-ai-lytics.com..."
+          ssh cira@74.208.227.161 "cd /home/cira/crypt-ai-lytics.com-B-tcrimer && \
+            git fetch origin main && \
+            git checkout main && \
+            git pull origin main && \
+            pip install -r requirements.txt && \
+            podman build -t btcrimer:latest -f Dockerfile . && \
+            podman stop btcrimer || true && \
+            podman rm btcrimer || true && \
+            podman run -d --name btcrimer \
+              --network web-net \
+              -e VIRTUAL_HOST='crypt-ai-lytics.com,www.crypt-ai-lytics.com' \
+              -e LETSENCRYPT_HOST='crypt-ai-lytics.com,www.crypt-ai-lytics.com' \
+              -e VIRTUAL_PORT=8501 \
+              -e FLASK_ENV=production \
+              --env-file .env \
+              --restart unless-stopped \
+              btcrimer:latest"
+
+      - name: Verify deployment
+        run: |
+          echo "⏳ Waiting for application to start..."
+          sleep 15
+          HTTP_STATUS=$(curl -s -o /dev/null -w '%{http_code}' https://crypt-ai-lytics.com || echo '0')
+          if [ $HTTP_STATUS -eq 200 ] || [ $HTTP_STATUS -eq 301 ] || [ $HTTP_STATUS -eq 302 ]; then
+            echo "✅ Production site is accessible (HTTP $HTTP_STATUS)"
+          else
+            echo "❌ Site returned HTTP $HTTP_STATUS"
+            exit 1
+          fi
+
+      - name: Notify on success
+        if: success()
+        run: echo "✅ Successfully deployed to crypt-ai-lytics.com!"
+
+      - name: Notify on failure
+        if: failure()
+        run: echo "❌ Deployment to crypt-ai-lytics.com failed!"
